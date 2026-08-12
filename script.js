@@ -23,7 +23,12 @@
         // ---------- اتصال به سرور Supabase ----------
         const SUPABASE_URL = 'https://fpzsqmiztaoxmzzghwcj.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_4tOSUAeWV1tN8QvOVA9LGA_DYZPJDo8';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let supabaseClient = null;
+        try {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        } catch (e) {
+            console.error('کتابخانه Supabase بارگذاری نشد:', e);
+        }
 
         function setSyncStatus(state) {
             const el = document.getElementById('syncStatus');
@@ -54,14 +59,30 @@
             data.workHours = parsed.workHours || [];
         }
 
+        function withTimeout(promise, ms = 8000) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout: پاسخی از سرور دریافت نشد')), ms))
+            ]);
+        }
+
         async function loadAllData() {
             setSyncStatus('loading');
+            if (!supabaseClient) {
+                console.log('کتابخانه Supabase در دسترس نیست، استفاده از نسخه محلی.');
+                try {
+                    const result = localStorage.getItem('henkel-data');
+                    if (result) applyLoadedContent(JSON.parse(result));
+                } catch (e2) {}
+                setSyncStatus('offline');
+                updateVisitorUI();
+                renderMap();
+                return;
+            }
             try {
-                const { data: row, error } = await supabaseClient
-                    .from('henkel_data')
-                    .select('content')
-                    .eq('id', 1)
-                    .single();
+                const { data: row, error } = await withTimeout(
+                    supabaseClient.from('henkel_data').select('content').eq('id', 1).single()
+                );
                 if (error) throw error;
                 if (row && row.content) {
                     applyLoadedContent(row.content);
@@ -133,12 +154,12 @@
             }
 
             // ارسال به سرور Supabase
+            if (!supabaseClient) { setSyncStatus('offline'); return; }
             setSyncStatus('saving');
             try {
-                const { error } = await supabaseClient
-                    .from('henkel_data')
-                    .update({ content: data, updated_at: new Date().toISOString() })
-                    .eq('id', 1);
+                const { error } = await withTimeout(
+                    supabaseClient.from('henkel_data').update({ content: data, updated_at: new Date().toISOString() }).eq('id', 1)
+                );
                 if (error) throw error;
                 setSyncStatus('online');
             } catch (e) {
@@ -784,4 +805,3 @@
                 dateInput.value = `${y}-${m}-${d}`;
             }
         })();
-
