@@ -21,7 +21,7 @@
         }
 
         // ---------- داده‌های اصلی ----------
-        let data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [] };
+        let data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [], workHours: [] };
 
         const dayNames = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
         const routeColors = ['#e20015', '#0056b3', '#28a745', '#e2a700', '#8a2be2', '#00838f', '#c2185b'];
@@ -41,12 +41,58 @@
                     data.visits = parsed.visits || [];
                     data.tasks = parsed.tasks || [];
                     data.taskCompletions = parsed.taskCompletions || [];
+                    data.workHours = parsed.workHours || [];
                 }
             } catch (e) {
                 console.log('شروع تازه.');
             }
             updateVisitorUI();
             renderMap();
+        }
+
+        // --- پشتیبان‌گیری (Backup / Restore) ---
+        function exportBackup() {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `henkel-backup-${dateStr}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importBackupFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (!confirm('با بارگذاری این فایل، تمام اطلاعات فعلی جایگزین می‌شود. آیا ادامه می‌دهید؟')) {
+                        event.target.value = '';
+                        return;
+                    }
+                    data.visitors = parsed.visitors || [];
+                    data.stores = parsed.stores || [];
+                    data.routes = parsed.routes || [];
+                    data.visits = parsed.visits || [];
+                    data.tasks = parsed.tasks || [];
+                    data.taskCompletions = parsed.taskCompletions || [];
+                    data.workHours = parsed.workHours || [];
+                    saveAllData();
+                    alert('بک‌آپ با موفقیت بارگذاری شد.');
+                    location.reload();
+                } catch (err) {
+                    alert('فایل بک‌آپ معتبر نیست.');
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
         }
 
         function saveAllData() {
@@ -116,6 +162,7 @@
             fillSelectWithVisitors('todayVisitorSelect', 'انتخاب ویزیتور...');
             fillSelectWithVisitors('reportVisitorSelect', 'همه ویزیتورها', true);
             fillSelectWithVisitors('weeklyVisitorSelect', 'انتخاب ویزیتور...');
+            fillSelectWithVisitors('workHoursVisitorSelect', 'انتخاب ویزیتور...');
         }
 
         function fillTaskDaySelect() {
@@ -239,6 +286,8 @@
                 let storeName = prompt("نام فروشگاه:");
                 if (!storeName) return;
                 let storeType = prompt("نوع فروشگاه (سوپرمارکت، عمده و...):");
+                let ownerName = prompt("نام صاحب فروشگاه:");
+                let phoneNumber = prompt("شماره تماس:");
 
                 let visitorText = "کد ویزیتور:\n";
                 data.visitors.forEach((v, index) => visitorText += (index + 1) + ". " + v + "\n");
@@ -247,6 +296,7 @@
 
                 let newStore = {
                     id: Date.now(), name: storeName, type: storeType || "نامشخص",
+                    owner: ownerName || "", phone: phoneNumber || "",
                     visitor: selectedVisitor, lat: e.latlng.lat, lng: e.latlng.lng
                 };
 
@@ -285,10 +335,41 @@
             let marker = L.marker([store.lat, store.lng]);
             let popupContent = `
                 <div class="store-popup">
-                    <h4>🏪 ${store.name}</h4><b>نوع:</b> ${store.type}<br><b>ویزیتور:</b> ${store.visitor}<br>
+                    <h4>🏪 ${store.name}</h4>
+                    <b>نوع:</b> ${store.type}<br>
+                    <b>صاحب فروشگاه:</b> ${store.owner || '-'}<br>
+                    <b>شماره تماس:</b> ${store.phone || '-'}<br>
+                    <b>ویزیتور:</b> ${store.visitor}<br>
                     <button class="info-btn" onclick="logVisit(${store.id})">✅ ثبت ویزیت امروز</button>
+                    <button class="warning-btn" onclick="editStore(${store.id})">✏️ ویرایش فروشگاه</button>
                 </div>`;
             marker.bindPopup(popupContent).addTo(storesLayer);
+        }
+
+        function editStore(id) {
+            const store = data.stores.find(s => s.id === id);
+            if (!store) return;
+
+            let newName = prompt("نام فروشگاه:", store.name);
+            if (newName === null) return;
+            let newType = prompt("نوع فروشگاه:", store.type || "");
+            let newOwner = prompt("نام صاحب فروشگاه:", store.owner || "");
+            let newPhone = prompt("شماره تماس:", store.phone || "");
+
+            let visitorText = "کد ویزیتور جدید (ویزیتور فعلی: " + store.visitor + "):\n";
+            data.visitors.forEach((v, index) => visitorText += (index + 1) + ". " + v + "\n");
+            let vIndex = prompt(visitorText + "\n(برای عدم تغییر، خالی بگذارید)");
+            let newVisitor = data.visitors[vIndex - 1] || store.visitor;
+
+            store.name = newName || store.name;
+            store.type = newType || store.type;
+            store.owner = newOwner || "";
+            store.phone = newPhone || "";
+            store.visitor = newVisitor;
+
+            saveAllData();
+            renderMap();
+            alert("اطلاعات فروشگاه به‌روزرسانی شد.");
         }
 
         // --- مسیرها (جدید و ویرایش) ---
@@ -531,13 +612,131 @@
         }
 
         function clearData() {
-            if (confirm("آیا مطمئن هستید؟ تمام ویزیتورها، فروشگاه‌ها، مسیرها، تسک‌ها و ویزیت‌ها پاک خواهند شد!")) {
-                data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [] };
+            if (confirm("آیا مطمئن هستید؟ تمام ویزیتورها، فروشگاه‌ها، مسیرها، تسک‌ها، ویزیت‌ها و ساعت‌های کاری پاک خواهند شد!")) {
+                data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [], workHours: [] };
                 saveAllData();
                 location.reload();
             }
         }
 
+        // ---------- ساعت کاری پرسنل ----------
+        const jalaliMonthNames = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+
+        // تبدیل تاریخ میلادی به شمسی (الگوریتم استاندارد)
+        function gregorianToJalali(gy, gm, gd) {
+            const g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+            let jy;
+            if (gy <= 1600) { jy = 0; gy -= 621; }
+            else { jy = 979; gy -= 1600; }
+            const gy2 = (gm > 2) ? (gy + 1) : gy;
+            let days = (365 * gy) + parseInt((gy2 + 3) / 4) - parseInt((gy2 + 99) / 100) + parseInt((gy2 + 399) / 400) - 80 + gd + g_d_m[gm - 1];
+            jy += 33 * parseInt(days / 12053);
+            days %= 12053;
+            jy += 4 * parseInt(days / 1461);
+            days %= 1461;
+            if (days > 365) { jy += parseInt((days - 1) / 365); days = (days - 1) % 365; }
+            let jm, jd;
+            if (days < 186) { jm = 1 + parseInt(days / 31); jd = 1 + (days % 31); }
+            else { jm = 7 + parseInt((days - 186) / 30); jd = 1 + ((days - 186) % 30); }
+            return { jy, jm, jd };
+        }
+
+        function computeWorkedHours(checkIn, checkOut) {
+            const [h1, m1] = checkIn.split(':').map(Number);
+            const [h2, m2] = checkOut.split(':').map(Number);
+            let minutes = (h2 * 60 + m2) - (h1 * 60 + m1);
+            if (minutes < 0) minutes += 24 * 60; // شیفت شبانه/عبور از نیمه‌شب
+            return minutes / 60;
+        }
+
+        function addWorkHour() {
+            const visitor = document.getElementById('workHoursVisitorSelect').value;
+            if (!visitor) return alert('ابتدا ویزیتور را انتخاب کنید.');
+            const dateVal = document.getElementById('workHoursDate').value;
+            const checkIn = document.getElementById('workHoursCheckIn').value;
+            const checkOut = document.getElementById('workHoursCheckOut').value;
+            const visits = parseInt(document.getElementById('workHoursVisits').value, 10) || 0;
+
+            if (!dateVal || !checkIn || !checkOut) return alert('تاریخ، ساعت ورود و ساعت خروج را وارد کنید.');
+
+            // جایگزینی رکورد قبلی همان تاریخ برای همان ویزیتور
+            data.workHours = data.workHours.filter(w => !(w.visitor === visitor && w.date === dateVal));
+            data.workHours.push({ id: Date.now(), visitor, date: dateVal, checkIn, checkOut, visits });
+            saveAllData();
+
+            document.getElementById('workHoursCheckIn').value = '';
+            document.getElementById('workHoursCheckOut').value = '';
+            document.getElementById('workHoursVisits').value = '';
+
+            renderWorkHours(visitor);
+        }
+
+        function deleteWorkHour(id) {
+            data.workHours = data.workHours.filter(w => w.id !== id);
+            saveAllData();
+            renderWorkHours(document.getElementById('workHoursVisitorSelect').value);
+        }
+
+        function renderWorkHours(visitor) {
+            const container = document.getElementById('workHoursResult');
+            container.style.display = 'block';
+            if (!visitor) {
+                container.innerHTML = '<span class="muted">ابتدا یک ویزیتور انتخاب کنید.</span>';
+                return;
+            }
+            const records = data.workHours.filter(w => w.visitor === visitor).sort((a, b) => a.date.localeCompare(b.date));
+            if (records.length === 0) {
+                container.innerHTML = '<span class="muted">هنوز ساعت کاری برای این ویزیتور ثبت نشده است.</span>';
+                return;
+            }
+
+            const groups = {};
+            records.forEach(r => {
+                const d = new Date(r.date + 'T00:00:00');
+                const { jy, jm } = gregorianToJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+                const key = jy + '-' + String(jm).padStart(2, '0');
+                if (!groups[key]) groups[key] = { jy, jm, items: [], totalHours: 0, totalVisits: 0 };
+                const hours = computeWorkedHours(r.checkIn, r.checkOut);
+                groups[key].items.push({ ...r, hours });
+                groups[key].totalHours += hours;
+                groups[key].totalVisits += (r.visits || 0);
+            });
+
+            let html = '';
+            Object.keys(groups).sort().forEach(key => {
+                const g = groups[key];
+                html += `<div style="margin-bottom:16px;"><b>📅 ${jalaliMonthNames[g.jm - 1]} ${g.jy}</b>`;
+                html += '<table><tr><th>تاریخ</th><th>ورود</th><th>خروج</th><th>ساعت کار</th><th>ویزیت</th><th></th></tr>';
+                g.items.forEach(it => {
+                    const dObj = new Date(it.date + 'T00:00:00');
+                    const dateStr = dObj.toLocaleDateString('fa-IR');
+                    const lowHours = it.hours < 8;
+                    html += `<tr style="${lowHours ? 'background:#fff3cd;' : ''}">
+                        <td>${dateStr}</td>
+                        <td>${it.checkIn}</td>
+                        <td>${it.checkOut}</td>
+                        <td>${it.hours.toFixed(1)}</td>
+                        <td>${it.visits || 0}</td>
+                        <td><button onclick="deleteWorkHour(${it.id})" style="width:auto; padding:3px 7px; margin:0; background:#6c757d; font-size:11px;">حذف</button></td>
+                    </tr>`;
+                });
+                html += `</table><div class="muted" style="margin-top:4px;">مجموع ساعت کار این ماه: <b>${g.totalHours.toFixed(1)}</b> ساعت | مجموع ویزیت این ماه: <b>${g.totalVisits}</b></div></div>`;
+            });
+            container.innerHTML = html;
+        }
+
         fillDaySelect();
         fillTaskDaySelect();
         loadAllData();
+
+        // پیش‌فرض تاریخ امروز برای بخش ساعت کاری
+        (function setDefaultWorkHoursDate() {
+            const dateInput = document.getElementById('workHoursDate');
+            if (dateInput) {
+                const now = new Date();
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const d = String(now.getDate()).padStart(2, '0');
+                dateInput.value = `${y}-${m}-${d}`;
+            }
+        })();
