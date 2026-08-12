@@ -9,6 +9,7 @@
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
     <link rel="stylesheet" href="style.css">
 </head>
@@ -27,6 +28,10 @@
 
     <div class="sidebar">
         <h3>مدیریت منطقه سقز - هنکل</h3>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:-8px;">
+            <span id="syncStatus" class="helper-text" style="margin:0;">🔄 در حال اتصال به سرور...</span>
+            <button onclick="refreshFromServer()" style="width:auto; padding:5px 10px; margin:0; font-size:12px; background:var(--secondary);">🔄 به‌روزرسانی</button>
+        </div>
 
         <!-- بخش 1 -->
         <div class="box">
