@@ -98,6 +98,40 @@
             <div id="weeklyPlanResult" class="result-box" style="display:none;"></div>
         </div>
 
+        <!-- بخش 7 -->
+        <div class="box">
+            <h4 class="section-title">⏰ ۷. ساعت کاری پرسنل</h4>
+            <select id="workHoursVisitorSelect" onchange="renderWorkHours(this.value)">
+                <option value="">انتخاب ویزیتور...</option>
+            </select>
+            <input type="date" id="workHoursDate">
+            <div style="display:flex; gap:6px;">
+                <div style="width:50%;">
+                    <label class="helper-text" style="margin:0;">ساعت ورود</label>
+                    <input type="time" id="workHoursCheckIn">
+                </div>
+                <div style="width:50%;">
+                    <label class="helper-text" style="margin:0;">ساعت خروج</label>
+                    <input type="time" id="workHoursCheckOut">
+                </div>
+            </div>
+            <input type="number" id="workHoursVisits" placeholder="تعداد ویزیت این روز..." min="0">
+            <button class="info-btn" onclick="addWorkHour()">💾 ثبت ساعت کاری</button>
+            <p class="helper-text">روزهای با کارکرد کمتر از ۸ ساعت به رنگ زرد نمایش داده می‌شوند. گزارش به‌صورت خودکار بر اساس ماه شمسی دسته‌بندی می‌شود.</p>
+            <div id="workHoursResult" class="result-box" style="display:none;"></div>
+        </div>
+
+        <!-- بخش 8 -->
+        <div class="box">
+            <h4 class="section-title">💾 ۸. پشتیبان‌گیری از اطلاعات</h4>
+            <p class="helper-text">با دانلود بک‌آپ، تمام اطلاعات سیستم (ویزیتورها، فروشگاه‌ها، مسیرها، ویزیت‌ها و ساعت‌های کاری) در یک فایل ذخیره می‌شود. با بارگذاری همان فایل روی دستگاه دیگر، اطلاعات به‌طور کامل منتقل می‌شوند.</p>
+            <div class="button-group">
+                <button class="info-btn" onclick="exportBackup()">📤 دانلود بک‌آپ</button>
+                <button class="action-btn" onclick="document.getElementById('importFileInput').click()">📥 بارگذاری بک‌آپ</button>
+            </div>
+            <input type="file" id="importFileInput" accept=".json,application/json" style="display:none" onchange="importBackupFile(event)">
+        </div>
+
         <button class="danger-btn" onclick="clearData()">🗑 پاک کردن تمام اطلاعات سیستم</button>
     </div>
 
