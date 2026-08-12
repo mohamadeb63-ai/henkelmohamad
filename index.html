@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل مدیریت فروش هنکل - نسخه تعاملی</title>
+
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- صفحه لاگین اجباری -->
+    <div id="loginOverlay">
+        <div class="login-box">
+            <h2>پنل هنکل</h2>
+            <p style="font-size: 14px; color: #555;">لطفا رمز عبور را وارد کنید</p>
+            <input type="password" id="passwordInput" placeholder="رمز عبور">
+            <button onclick="checkPassword()">ورود به سیستم</button>
+            <p id="loginError" style="color: #e20015; display: none; font-size: 13px; margin-top: 10px; font-weight: bold;">❌ رمز عبور اشتباه است!</p>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <h3>مدیریت منطقه سقز - هنکل</h3>
+
+        <!-- بخش 1 -->
+        <div class="box">
+            <h4 class="section-title">👤 ۱. مدیریت ویزیتورها</h4>
+            <input type="text" id="visitorName" placeholder="نام ویزیتور جدید...">
+            <button onclick="addVisitor()">ثبت ویزیتور</button>
+            <ul id="visitorList"></ul>
+        </div>
+
+        <!-- بخش 2 -->
+        <div class="box">
+            <h4 class="section-title">🏪 ۲. ثبت فروشگاه روی نقشه</h4>
+            <p class="helper-text">روی دکمه زیر کلیک کنید، سپس نقطه مورد نظر را روی نقشه لمس کنید.</p>
+            <button class="action-btn" id="addStoreBtn" onclick="toggleStoreMode()">📍 فعال‌سازی کلیک برای ثبت فروشگاه</button>
+        </div>
+
+        <!-- بخش 3 -->
+        <div class="box">
+            <h4 class="section-title">🗺 ۳. رسم و ویرایش مسیر</h4>
+            <p class="helper-text">برای پایان رسم مسیر از کلید <b>Ctrl</b> روی کیبورد استفاده کنید.</p>
+            <select id="routeVisitorSelect">
+                <option value="">انتخاب ویزیتور...</option>
+            </select>
+            <select id="routeDaySelect"></select>
+            <div class="button-group">
+                <button class="action-btn" id="addRouteBtn" onclick="toggleRouteMode()">✏️ رسم مسیر جدید</button>
+                <button class="warning-btn" id="editRouteBtn" onclick="toggleEditRouteMode()">⚙️ ویرایش مسیر</button>
+            </div>
+            <p class="helper-text" id="routeHelperText" style="display:none; color:var(--primary); font-weight:bold;"></p>
+        </div>
+
+        <!-- بخش 4 -->
+        <div class="box">
+            <h4 class="section-title">📌 ۴. مسیر امروز ویزیتور</h4>
+            <select id="todayVisitorSelect">
+                <option value="">انتخاب ویزیتور...</option>
+            </select>
+            <button class="info-btn" onclick="showTodayRoute()">نمایش مسیر امروز</button>
+            <div id="todayResult" class="result-box" style="display:none;"></div>
+        </div>
+
+        <!-- بخش 5 -->
+        <div class="box">
+            <h4 class="section-title">📊 ۵. گزارش ویزیت‌ها</h4>
+            <select id="reportVisitorSelect">
+                <option value="all">همه ویزیتورها</option>
+            </select>
+            <select id="reportPeriodSelect">
+                <option value="week">یک هفته اخیر</option>
+                <option value="month">یک ماه اخیر</option>
+                <option value="sixmonth">شش ماه اخیر</option>
+                <option value="year">یک سال اخیر</option>
+            </select>
+            <button class="info-btn" onclick="showReport()">نمایش گزارش</button>
+            <div id="reportResult" class="result-box" style="display:none;"></div>
+        </div>
+
+        <!-- بخش 6 -->
+        <div class="box">
+            <h4 class="section-title">🗓 ۶. برنامه هفتگی و تسک‌های ویزیتور</h4>
+            <select id="weeklyVisitorSelect" onchange="renderWeeklyPlan(this.value)">
+                <option value="">انتخاب ویزیتور...</option>
+            </select>
+            <div style="display:flex; gap:6px;">
+                <select id="taskDaySelect" style="width:40%;"></select>
+                <input type="text" id="taskText" placeholder="متن تسک..." style="width:60%;">
+            </div>
+            <button class="info-btn" onclick="addTask()">➕ افزودن تسک</button>
+            <div id="weeklyPlanResult" class="result-box" style="display:none;"></div>
+        </div>
+
+        <button class="danger-btn" onclick="clearData()">🗑 پاک کردن تمام اطلاعات سیستم</button>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>

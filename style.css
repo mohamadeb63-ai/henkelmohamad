@@ -1,0 +1,162 @@
+:root {
+            --primary: #e20015;
+            --primary-hover: #b30010;
+            --secondary: #0056b3;
+            --secondary-hover: #004494;
+            --success: #28a745;
+            --success-hover: #1e7e34;
+            --warning: #d39e00;
+            --bg-color: #f4f4f9;
+            --box-bg: #ffffff;
+            --border-color: #e0e0e0;
+        }
+
+        body { 
+            font-family: 'Vazirmatn', Tahoma, Arial, sans-serif; 
+            margin: 0; 
+            display: flex; 
+            height: 100vh; 
+            background-color: var(--bg-color); 
+            overflow: hidden; 
+        }
+
+        /* --- استایل‌های صفحه لاگین --- */
+        #loginOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(8px);
+        }
+        .login-box {
+            background: white;
+            padding: 35px 25px;
+            border-radius: 12px;
+            text-align: center;
+            width: 320px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .login-box h2 { color: var(--primary); margin-top: 0; margin-bottom: 20px; }
+        .login-box input { text-align: center; letter-spacing: 2px; font-size: 18px; }
+        .login-box button { font-size: 16px; padding: 12px; }
+
+        /* --- استایل‌های سایدبار و نقشه --- */
+        .sidebar { 
+            width: 360px; 
+            background: var(--box-bg); 
+            padding: 20px; 
+            box-shadow: -2px 0 10px rgba(0,0,0,0.05); 
+            overflow-y: auto; 
+            z-index: 1000; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+        }
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .sidebar::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+        .sidebar::-webkit-scrollbar-thumb:hover { background: #888; }
+
+        @media (max-width: 768px) { 
+            body { flex-direction: column; overflow: auto; } 
+            .sidebar { width: auto; height: 50vh; } 
+            #map { height: 50vh; } 
+        }
+
+        h3 { 
+            color: var(--primary); 
+            text-align: center; 
+            margin-top: 0; 
+            border-bottom: 2px solid var(--primary); 
+            padding-bottom: 12px; 
+            font-weight: 800;
+        }
+        
+        h4.section-title { color: var(--primary); margin: 0 0 10px 0; font-size: 15px; }
+
+        .box { 
+            background: #fafafa; 
+            padding: 15px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px; 
+            transition: all 0.3s ease;
+        }
+        .box:hover { border-color: #ccc; }
+
+        input, select { 
+            width: 100%; 
+            box-sizing: border-box;
+            padding: 9px; 
+            margin-top: 8px; 
+            border: 1px solid #ccc; 
+            border-radius: 6px; 
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        input:focus, select:focus { outline: none; border-color: var(--primary); }
+
+        button { 
+            background: var(--primary); 
+            color: white; 
+            border: none; 
+            padding: 10px 12px; 
+            margin-top: 12px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            width: 100%; 
+            font-weight: bold; 
+            font-family: inherit;
+            transition: background 0.3s ease, transform 0.1s;
+        }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:active:not(:disabled) { transform: scale(0.98); }
+        button:hover:not(:disabled) { background: var(--primary-hover); }
+        
+        .action-btn { background: var(--secondary); }
+        .action-btn:hover:not(:disabled) { background: var(--secondary-hover); }
+        
+        .warning-btn { background: var(--warning); color: #fff; }
+        .warning-btn:hover:not(:disabled) { background: #b8860b; }
+
+        .danger-btn { background: #6c757d; margin-top: 20px; }
+        .danger-btn:hover { background: #5a6268; }
+        
+        .info-btn { background: var(--success); }
+        .info-btn:hover:not(:disabled) { background: var(--success-hover); }
+
+        #map { flex: 1; height: 100%; z-index: 1; }
+        .map-crosshair { cursor: crosshair !important; }
+
+        ul { padding-right: 20px; margin: 10px 0 5px 0; font-size: 14px; }
+        li { margin-bottom: 5px; }
+
+        .store-popup { font-family: 'Vazirmatn', Tahoma, sans-serif; }
+        .store-popup h4 { color: var(--primary); margin: 0 0 8px 0; font-size: 15px;}
+        .store-popup button { margin-top: 10px; padding: 6px; font-size: 13px; }
+
+        .result-box { 
+            background: #fff; 
+            border: 1px solid var(--border-color); 
+            border-radius: 6px; 
+            padding: 12px; 
+            margin-top: 12px; 
+            font-size: 13px; 
+            max-height: 250px; 
+            overflow-y: auto; 
+        }
+        .result-box table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .result-box td, .result-box th { border-bottom: 1px solid #eee; padding: 8px 4px; text-align: right; }
+        .muted { color: #777; font-size: 12px; }
+        .badge { 
+            display: inline-block; 
+            background: var(--primary); 
+            color: #fff; 
+            border-radius: 12px; 
+            padding: 3px 10px; 
+            font-size: 12px; 
+            margin-right: 4px; 
+            font-weight: bold;
+        }
+        .helper-text { font-size: 12px; color: #666; margin-top: 5px; line-height: 1.5; }
+        .button-group { display: flex; gap: 8px; }
