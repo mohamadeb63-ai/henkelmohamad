@@ -20,6 +20,20 @@
             }
         }
 
+        // ---------- اتصال به سرور Supabase ----------
+        const SUPABASE_URL = 'https://fpzsqmiztaoxmzzghwcj.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_4tOSUAeWV1tN8QvOVA9LGA_DYZPJDo8';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        function setSyncStatus(state) {
+            const el = document.getElementById('syncStatus');
+            if (!el) return;
+            if (state === 'loading') { el.innerText = '🔄 در حال اتصال به سرور...'; el.style.color = '#666'; }
+            else if (state === 'online') { el.innerText = '✅ متصل به سرور (اطلاعات همگام)'; el.style.color = 'var(--success)'; }
+            else if (state === 'saving') { el.innerText = '💾 در حال ذخیره در سرور...'; el.style.color = '#666'; }
+            else if (state === 'offline') { el.innerText = '⚠️ عدم اتصال به سرور - نسخه محلی نمایش داده می‌شود'; el.style.color = 'var(--primary)'; }
+        }
+
         // ---------- داده‌های اصلی ----------
         let data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [], workHours: [] };
 
@@ -30,24 +44,45 @@
             return (d.getDay() + 1) % 7;
         }
 
-        function loadAllData() {
+        function applyLoadedContent(parsed) {
+            data.visitors = parsed.visitors || [];
+            data.stores = parsed.stores || [];
+            data.routes = parsed.routes || [];
+            data.visits = parsed.visits || [];
+            data.tasks = parsed.tasks || [];
+            data.taskCompletions = parsed.taskCompletions || [];
+            data.workHours = parsed.workHours || [];
+        }
+
+        async function loadAllData() {
+            setSyncStatus('loading');
             try {
-                const result = localStorage.getItem('henkel-data');
-                if (result) {
-                    const parsed = JSON.parse(result);
-                    data.visitors = parsed.visitors || [];
-                    data.stores = parsed.stores || [];
-                    data.routes = parsed.routes || [];
-                    data.visits = parsed.visits || [];
-                    data.tasks = parsed.tasks || [];
-                    data.taskCompletions = parsed.taskCompletions || [];
-                    data.workHours = parsed.workHours || [];
+                const { data: row, error } = await supabaseClient
+                    .from('henkel_data')
+                    .select('content')
+                    .eq('id', 1)
+                    .single();
+                if (error) throw error;
+                if (row && row.content) {
+                    applyLoadedContent(row.content);
+                    // نسخه محلی به‌عنوان کش/پشتیبان به‌روزرسانی می‌شود
+                    try { localStorage.setItem('henkel-data', JSON.stringify(data)); } catch (e) {}
                 }
+                setSyncStatus('online');
             } catch (e) {
-                console.log('شروع تازه.');
+                console.log('عدم اتصال به سرور، استفاده از نسخه محلی:', e);
+                try {
+                    const result = localStorage.getItem('henkel-data');
+                    if (result) applyLoadedContent(JSON.parse(result));
+                } catch (e2) {}
+                setSyncStatus('offline');
             }
             updateVisitorUI();
             renderMap();
+        }
+
+        async function refreshFromServer() {
+            await loadAllData();
         }
 
         // --- پشتیبان‌گیری (Backup / Restore) ---
@@ -69,22 +104,16 @@
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = function (e) {
+            reader.onload = async function (e) {
                 try {
                     const parsed = JSON.parse(e.target.result);
-                    if (!confirm('با بارگذاری این فایل، تمام اطلاعات فعلی جایگزین می‌شود. آیا ادامه می‌دهید؟')) {
+                    if (!confirm('با بارگذاری این فایل، تمام اطلاعات فعلی (روی سرور) جایگزین می‌شود. آیا ادامه می‌دهید؟')) {
                         event.target.value = '';
                         return;
                     }
-                    data.visitors = parsed.visitors || [];
-                    data.stores = parsed.stores || [];
-                    data.routes = parsed.routes || [];
-                    data.visits = parsed.visits || [];
-                    data.tasks = parsed.tasks || [];
-                    data.taskCompletions = parsed.taskCompletions || [];
-                    data.workHours = parsed.workHours || [];
-                    saveAllData();
-                    alert('بک‌آپ با موفقیت بارگذاری شد.');
+                    applyLoadedContent(parsed);
+                    await saveAllData();
+                    alert('بک‌آپ با موفقیت بارگذاری و با سرور همگام شد.');
                     location.reload();
                 } catch (err) {
                     alert('فایل بک‌آپ معتبر نیست.');
@@ -95,11 +124,26 @@
             reader.readAsText(file);
         }
 
-        function saveAllData() {
+        async function saveAllData() {
+            // ذخیره فوری در نسخه محلی (کش/پشتیبان آفلاین)
             try {
                 localStorage.setItem('henkel-data', JSON.stringify(data));
             } catch (e) {
                 alert('خطا در ذخیره اطلاعات در مرورگر.');
+            }
+
+            // ارسال به سرور Supabase
+            setSyncStatus('saving');
+            try {
+                const { error } = await supabaseClient
+                    .from('henkel_data')
+                    .update({ content: data, updated_at: new Date().toISOString() })
+                    .eq('id', 1);
+                if (error) throw error;
+                setSyncStatus('online');
+            } catch (e) {
+                console.error('خطا در ذخیره در سرور:', e);
+                setSyncStatus('offline');
             }
         }
 
@@ -611,10 +655,10 @@
             resultDiv.innerHTML = html;
         }
 
-        function clearData() {
-            if (confirm("آیا مطمئن هستید؟ تمام ویزیتورها، فروشگاه‌ها، مسیرها، تسک‌ها، ویزیت‌ها و ساعت‌های کاری پاک خواهند شد!")) {
+        async function clearData() {
+            if (confirm("آیا مطمئن هستید؟ تمام ویزیتورها، فروشگاه‌ها، مسیرها، تسک‌ها، ویزیت‌ها و ساعت‌های کاری روی سرور نیز پاک خواهند شد!")) {
                 data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [], workHours: [] };
-                saveAllData();
+                await saveAllData();
                 location.reload();
             }
         }
@@ -740,3 +784,4 @@
                 dateInput.value = `${y}-${m}-${d}`;
             }
         })();
+
