@@ -296,8 +296,8 @@
             let html = '';
             dayNames.forEach((name, d) => {
                 const route = data.routes.find(r => r.visitor === visitor && r.day === d);
-                let routeInfo = '<span class="muted">بدون مسیر</span>';
-                if (route) routeInfo = `<span class="badge">${storesNearRoute(route).length} فروشگاه</span>`;
+                let routeInfo = '<span class="muted">بدون منطقه</span>';
+                if (route) routeInfo = `<span class="badge">${storesInRoute(route).length} فروشگاه</span>`;
 
                 const dayTasks = data.tasks.filter(t => t.visitor === visitor && (t.day === d || t.day === 'any'));
                 html += `<div style="border-bottom:1px solid #eee; padding:6px 0;"><b>${name}</b> - ${routeInfo}`;
@@ -330,7 +330,7 @@
 
         // --- فروشگاه‌ها ---
         function toggleStoreMode() {
-            if (isEditRouteMode) return alert("ابتدا ویرایش مسیر فعلی را ذخیره کنید.");
+            if (isEditRouteMode) return alert("ابتدا ویرایش منطقه فعلی را ذخیره کنید.");
             
             isStoreMode = !isStoreMode;
             isRouteMode = false;
@@ -338,7 +338,7 @@
             document.getElementById('addStoreBtn').style.background = isStoreMode ? "var(--success)" : "var(--secondary)";
             document.getElementById('addStoreBtn').innerText = isStoreMode ? "🟢 آماده ثبت فروشگاه (کلیک کنید)" : "📍 فعال‌سازی کلیک برای ثبت فروشگاه";
             document.getElementById('addRouteBtn').style.background = "var(--secondary)";
-            document.getElementById('addRouteBtn').innerText = "✏️ رسم مسیر جدید";
+            document.getElementById('addRouteBtn').innerText = "✏️ رسم منطقه جدید";
 
             if(isStoreMode) mapContainer.classList.add('map-crosshair');
             else mapContainer.classList.remove('map-crosshair');
@@ -370,19 +370,21 @@
             else if (isRouteMode) {
                 currentRoutePoints.push([e.latlng.lat, e.latlng.lng]);
                 if (tempPolyline) map.removeLayer(tempPolyline);
-                tempPolyline = L.polyline(currentRoutePoints, { color: 'red', weight: 4 }).addTo(map);
+                const dayForColor = parseInt(document.getElementById('routeDaySelect').value, 10) || 0;
+                const previewColor = routeColors[dayForColor % routeColors.length];
+                tempPolyline = L.polygon(currentRoutePoints, { color: previewColor, weight: 3, fillOpacity: 0.25 }).addTo(map);
             }
         });
 
-        // پایان دادن به رسم مسیر با دکمه Ctrl کیبورد
+        // پایان دادن به رسم منطقه با دکمه Ctrl کیبورد
         document.addEventListener('keydown', function(e) {
-            if ((e.key === 'Control' || e.ctrlKey || e.metaKey) && isRouteMode && currentRoutePoints.length > 1) {
+            if ((e.key === 'Control' || e.ctrlKey || e.metaKey) && isRouteMode && currentRoutePoints.length > 2) {
                 e.preventDefault(); // جلوگیری از رفتار پیش‌فرض
                 
                 let visitor = document.getElementById('routeVisitorSelect').value;
                 let day = parseInt(document.getElementById('routeDaySelect').value, 10);
                 
-                // جایگزین مسیر قبلی
+                // جایگزین منطقه قبلی
                 data.routes = data.routes.filter(r => !(r.visitor === visitor && r.day === day));
                 data.routes.push({ id: Date.now(), visitor: visitor, day: day, points: currentRoutePoints });
                 saveAllData();
@@ -392,7 +394,7 @@
                 toggleRouteMode(); // خروج از حالت رسم
                 renderMap();
                 
-                alert('مسیر با موفقیت ذخیره شد.');
+                alert('منطقه با موفقیت ذخیره شد.');
             }
         });
 
@@ -437,9 +439,9 @@
             alert("اطلاعات فروشگاه به‌روزرسانی شد.");
         }
 
-        // --- مسیرها (جدید و ویرایش) ---
+        // --- مناطق (جدید و ویرایش) ---
         function toggleRouteMode() {
-            if (isEditRouteMode) return alert("ابتدا ویرایش مسیر فعلی را ذخیره کنید.");
+            if (isEditRouteMode) return alert("ابتدا ویرایش منطقه فعلی را ذخیره کنید.");
             
             let visitor = document.getElementById('routeVisitorSelect').value;
             if (!isRouteMode && !visitor) return alert("ابتدا ویزیتور را از لیست انتخاب کنید.");
@@ -450,7 +452,7 @@
 
             let btn = document.getElementById('addRouteBtn');
             btn.style.background = isRouteMode ? "var(--success)" : "var(--secondary)";
-            btn.innerText = isRouteMode ? "🟢 در حال رسم (کلید Ctrl=پایان)" : "✏️ رسم مسیر جدید";
+            btn.innerText = isRouteMode ? "🟢 در حال رسم (کلید Ctrl=پایان)" : "✏️ رسم منطقه جدید";
             
             document.getElementById('addStoreBtn').style.background = "var(--secondary)";
             document.getElementById('addStoreBtn').innerText = "📍 فعال‌سازی کلیک برای ثبت فروشگاه";
@@ -462,7 +464,7 @@
                 map.doubleClickZoom.disable(); // جلوگیری از زوم با دبل کلیک اشتباه حین رسم
                 mapContainer.classList.add('map-crosshair');
                 helper.style.display = 'block';
-                helper.innerText = "برای رسم مسیر روی نقاط نقشه کلیک کنید و در انتها کلید Ctrl کیبورد را فشار دهید.";
+                helper.innerText = "برای رسم منطقه، حداقل ۳ نقطه دور منطقه فعالیت کلیک کنید و در انتها کلید Ctrl کیبورد را فشار دهید.";
             } else {
                 map.doubleClickZoom.enable();
                 mapContainer.classList.remove('map-crosshair');
@@ -480,7 +482,7 @@
                 if (!visitor) return alert("ابتدا ویزیتور را انتخاب کنید.");
                 
                 let routeIndex = data.routes.findIndex(r => r.visitor === visitor && r.day === day);
-                if (routeIndex === -1) return alert("مسیری برای این ویزیتور در این روز وجود ندارد تا ویرایش شود.");
+                if (routeIndex === -1) return alert("منطقه‌ای برای این ویزیتور در این روز وجود ندارد تا ویرایش شود.");
                 
                 // شروع ویرایش
                 isEditRouteMode = true;
@@ -489,16 +491,16 @@
                 document.getElementById('addRouteBtn').disabled = true;
                 
                 helper.style.display = 'block';
-                helper.innerText = "نقاط (دایره‌های روی مسیر) را با موس گرفته و جابجا کنید. سپس دکمه ذخیره ویرایش را بزنید.";
+                helper.innerText = "نقاط (دایره‌های روی منطقه) را با موس گرفته و جابجا کنید. سپس دکمه ذخیره ویرایش را بزنید.";
                 
-                // مخفی کردن مسیرهای اصلی
+                // مخفی کردن مناطق اصلی
                 routesLayer.clearLayers();
                 
                 let route = data.routes[routeIndex];
                 editMarkers = [];
                 let points = route.points.map(p => [p[0], p[1]]);
                 
-                editPolyline = L.polyline(points, { color: 'orange', weight: 5, dashArray: '8, 8' }).addTo(map);
+                editPolyline = L.polygon(points, { color: 'orange', weight: 4, dashArray: '8, 8', fillOpacity: 0.2 }).addTo(map);
                 
                 // ایجاد مارکرهای قابل درگ
                 points.forEach((pt, idx) => {
@@ -528,7 +530,7 @@
                 
                 // خروج از حالت ویرایش
                 isEditRouteMode = false;
-                document.getElementById('editRouteBtn').innerText = "⚙️ ویرایش مسیر";
+                document.getElementById('editRouteBtn').innerText = "⚙️ ویرایش منطقه";
                 document.getElementById('editRouteBtn').style.background = "var(--warning)";
                 document.getElementById('addRouteBtn').disabled = false;
                 helper.style.display = 'none';
@@ -539,15 +541,16 @@
                 if (editPolyline) map.removeLayer(editPolyline);
                 
                 renderMap();
-                alert("مسیر با موفقیت به‌روزرسانی شد.");
+                alert("منطقه با موفقیت به‌روزرسانی شد.");
             }
         }
 
         function drawRoutes() {
             data.routes.forEach(route => {
                 const color = routeColors[route.day % routeColors.length];
-                L.polyline(route.points, { color: color, weight: 3, dashArray: '5, 10' })
-                  .bindPopup(`ویزیتور: ${route.visitor} | روز: ${dayNames[route.day]}`)
+                const insideCount = storesInRoute(route).length;
+                L.polygon(route.points, { color: color, weight: 3, fillColor: color, fillOpacity: 0.15 })
+                  .bindPopup(`ویزیتور: ${route.visitor} | روز: ${dayNames[route.day]} | فروشگاه داخل منطقه: ${insideCount}`)
                   .addTo(routesLayer);
             });
         }
@@ -561,36 +564,22 @@
         }
 
         // --- توابع کمکی ---
-        function toXY(lat, lng, refLat) {
-            const R = 111320; return { x: lng * R * Math.cos(refLat * Math.PI / 180), y: lat * R };
+        // تشخیص اینکه یک نقطه (فروشگاه) داخل منطقه (Polygon) قرار دارد یا نه
+        function isPointInPolygon(lat, lng, points) {
+            let inside = false;
+            for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+                const yi = points[i][0], xi = points[i][1];
+                const yj = points[j][0], xj = points[j][1];
+                const intersect = ((yi > lat) !== (yj > lat)) &&
+                    (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
         }
 
-        function distancePointToSegment(p, a, b) {
-            const abx = b.x - a.x, aby = b.y - a.y;
-            const apx = p.x - a.x, apy = p.y - a.y;
-            const lenSq = abx * abx + aby * aby;
-            let t = lenSq === 0 ? 0 : (apx * abx + apy * aby) / lenSq;
-            t = Math.max(0, Math.min(1, t));
-            const cx = a.x + t * abx, cy = a.y + t * aby;
-            return Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2);
-        }
-
-        function storesNearRoute(route, thresholdMeters = 400) {
-            if(!route.points || route.points.length === 0) return [];
-            const refLat = route.points[0][0];
-            const routeXY = route.points.map(pt => toXY(pt[0], pt[1], refLat));
-            const candidateStores = data.stores.filter(s => s.visitor === route.visitor);
-            const nearby = [];
-            candidateStores.forEach(store => {
-                const p = toXY(store.lat, store.lng, refLat);
-                let minDist = Infinity;
-                for (let i = 0; i < routeXY.length - 1; i++) {
-                    const d = distancePointToSegment(p, routeXY[i], routeXY[i + 1]);
-                    if (d < minDist) minDist = d;
-                }
-                if (minDist <= thresholdMeters) nearby.push(store);
-            });
-            return nearby;
+        function storesInRoute(route) {
+            if (!route.points || route.points.length < 3) return [];
+            return data.stores.filter(s => s.visitor === route.visitor && isPointInPolygon(s.lat, s.lng, route.points));
         }
 
         function showTodayRoute() {
@@ -608,18 +597,18 @@
             const route = data.routes.find(r => r.visitor === visitor && r.day === todayIdx);
 
             if (!route) {
-                resultDiv.innerHTML = `<span class="muted">برای <b>${visitor}</b> در روز <b>${dayNames[todayIdx]}</b> هنوز مسیری ثبت نشده است.</span>`;
+                resultDiv.innerHTML = `<span class="muted">برای <b>${visitor}</b> در روز <b>${dayNames[todayIdx]}</b> هنوز منطقه‌ای ثبت نشده است.</span>`;
                 return;
             }
 
-            L.polyline(route.points, { color: '#28a745', weight: 6, opacity: 0.8 }).addTo(todayRouteLayer);
-            map.fitBounds(L.polyline(route.points).getBounds(), { padding: [30, 30] });
+            const polygonLayer = L.polygon(route.points, { color: '#28a745', weight: 4, fillOpacity: 0.25, opacity: 0.9 }).addTo(todayRouteLayer);
+            map.fitBounds(polygonLayer.getBounds(), { padding: [30, 30] });
 
-            const nearby = storesNearRoute(route);
+            const inside = storesInRoute(route);
             let html = `روز <b>${dayNames[todayIdx]}</b> - ویزیتور <b>${visitor}</b><br>`;
-            html += `<span class="badge">${nearby.length} فروشگاه</span> در مسیر امروز (تقریبی)<br>`;
-            if (nearby.length > 0) {
-                html += '<ul>' + nearby.map(s => `<li>${s.name} (${s.type})</li>`).join('') + '</ul>';
+            html += `<span class="badge">${inside.length} فروشگاه</span> داخل منطقه امروز<br>`;
+            if (inside.length > 0) {
+                html += '<ul>' + inside.map(s => `<li>${s.name} (${s.type})</li>`).join('') + '</ul>';
             }
             resultDiv.innerHTML = html;
         }
@@ -677,7 +666,7 @@
         }
 
         async function clearData() {
-            if (confirm("آیا مطمئن هستید؟ تمام ویزیتورها، فروشگاه‌ها، مسیرها، تسک‌ها، ویزیت‌ها و ساعت‌های کاری روی سرور نیز پاک خواهند شد!")) {
+            if (confirm("آیا مطمئن هستید؟ تمام ویزیتورها، فروشگاه‌ها، مناطق، تسک‌ها، ویزیت‌ها و ساعت‌های کاری روی سرور نیز پاک خواهند شد!")) {
                 data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [], workHours: [] };
                 await saveAllData();
                 location.reload();
