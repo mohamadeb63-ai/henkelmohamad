@@ -50,26 +50,26 @@
 
         <!-- بخش 3 -->
         <div class="box">
-            <h4 class="section-title">🗺 ۳. رسم و ویرایش مسیر</h4>
-            <p class="helper-text">برای پایان رسم مسیر از کلید <b>Ctrl</b> روی کیبورد استفاده کنید.</p>
+            <h4 class="section-title">🗺 ۳. رسم و ویرایش منطقه فعالیت</h4>
+            <p class="helper-text">برای پایان رسم منطقه از کلید <b>Ctrl</b> روی کیبورد استفاده کنید (حداقل ۳ نقطه لازم است).</p>
             <select id="routeVisitorSelect">
                 <option value="">انتخاب ویزیتور...</option>
             </select>
             <select id="routeDaySelect"></select>
             <div class="button-group">
-                <button class="action-btn" id="addRouteBtn" onclick="toggleRouteMode()">✏️ رسم مسیر جدید</button>
-                <button class="warning-btn" id="editRouteBtn" onclick="toggleEditRouteMode()">⚙️ ویرایش مسیر</button>
+                <button class="action-btn" id="addRouteBtn" onclick="toggleRouteMode()">✏️ رسم منطقه جدید</button>
+                <button class="warning-btn" id="editRouteBtn" onclick="toggleEditRouteMode()">⚙️ ویرایش منطقه</button>
             </div>
             <p class="helper-text" id="routeHelperText" style="display:none; color:var(--primary); font-weight:bold;"></p>
         </div>
 
         <!-- بخش 4 -->
         <div class="box">
-            <h4 class="section-title">📌 ۴. مسیر امروز ویزیتور</h4>
+            <h4 class="section-title">📌 ۴. منطقه امروز ویزیتور</h4>
             <select id="todayVisitorSelect">
                 <option value="">انتخاب ویزیتور...</option>
             </select>
-            <button class="info-btn" onclick="showTodayRoute()">نمایش مسیر امروز</button>
+            <button class="info-btn" onclick="showTodayRoute()">نمایش منطقه امروز</button>
             <div id="todayResult" class="result-box" style="display:none;"></div>
         </div>
 
