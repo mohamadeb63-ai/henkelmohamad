@@ -40,13 +40,97 @@
         }
 
         // ---------- داده‌های اصلی ----------
-        let data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [], workHours: [] };
+        let data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [], workHours: [], customHolidays: [] };
 
         const dayNames = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
         const routeColors = ['#e20015', '#0056b3', '#28a745', '#e2a700', '#8a2be2', '#00838f', '#c2185b'];
 
         function getIranianDay(d = new Date()) {
             return (d.getDay() + 1) % 7;
+        }
+
+        // ---------- تقویم میلادی و روزهای کاری ----------
+        const gregorianMonthNamesFa = ['ژانویه', 'فوریه', 'مارس', 'آوریل', 'مه', 'ژوئن', 'ژوئیه', 'اوت', 'سپتامبر', 'اکتبر', 'نوامبر', 'دسامبر'];
+        let calendarViewDate = new Date();
+
+        function changeCalendarMonth(delta) {
+            calendarViewDate.setMonth(calendarViewDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function goToCurrentMonth() {
+            calendarViewDate = new Date();
+            renderCalendar();
+        }
+
+        function toggleCustomHoliday(dateStr) {
+            const idx = data.customHolidays.indexOf(dateStr);
+            if (idx === -1) data.customHolidays.push(dateStr);
+            else data.customHolidays.splice(idx, 1);
+            saveAllData();
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const container = document.getElementById('calendarContainer');
+            if (!container) return;
+
+            const year = calendarViewDate.getFullYear();
+            const month = calendarViewDate.getMonth(); // 0-indexed
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDay = new Date(year, month, 1);
+            const startOffset = (firstDay.getDay() + 1) % 7; // شنبه = 0
+
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const isCurrentMonth = (now.getFullYear() === year && now.getMonth() === month);
+
+            let html = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <button onclick="changeCalendarMonth(-1)" style="width:auto; padding:5px 12px; margin:0;">›</button>
+                <b style="cursor:pointer;" onclick="goToCurrentMonth()" title="بازگشت به ماه جاری">${gregorianMonthNamesFa[month]} ${year}</b>
+                <button onclick="changeCalendarMonth(1)" style="width:auto; padding:5px 12px; margin:0;">‹</button>
+            </div>`;
+
+            html += '<table style="width:100%; text-align:center; font-size:12px; border-collapse:collapse;"><tr>';
+            dayNames.forEach(d => html += `<th style="padding:3px; color:#888; font-weight:normal;">${d.slice(0, 1)}</th>`);
+            html += '</tr><tr>';
+
+            let col = 0;
+            for (let i = 0; i < startOffset; i++) { html += '<td></td>'; col++; }
+
+            let workingDays = 0;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(year, month, d);
+                const isFriday = ((dateObj.getDay() + 1) % 7) === 6;
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const isCustomHoliday = data.customHolidays.includes(dateStr);
+                const isHoliday = isFriday || isCustomHoliday;
+                const isToday = dateStr === todayStr;
+
+                if (!isHoliday) workingDays++;
+
+                let style = 'padding:6px 2px; cursor:pointer; border-radius:5px;';
+                if (isHoliday) style += 'background:#ffe0e0; color:var(--primary); font-weight:bold;';
+                if (isToday) style += 'box-shadow: inset 0 0 0 2px var(--secondary);';
+
+                html += `<td style="${style}" onclick="toggleCustomHoliday('${dateStr}')" title="${isCustomHoliday ? 'کلیک برای حذف تعطیلی' : (isFriday ? 'تعطیل هفتگی' : 'کلیک برای علامت‌گذاری به‌عنوان تعطیل')}">${d}</td>`;
+
+                col++;
+                if (col % 7 === 0 && d !== daysInMonth) html += '</tr><tr>';
+            }
+            html += '</tr></table>';
+
+            let statsHtml = `<div class="muted" style="margin-top:10px; line-height:2;">
+                📊 این ماه <b>${daysInMonth}</b> روز دارد که <b>${workingDays}</b> روز آن کاری است.<br>`;
+            if (isCurrentMonth) {
+                const percent = ((now.getDate() / daysInMonth) * 100).toFixed(0);
+                statsHtml += `📅 تا امروز <b>${percent}%</b> از این ماه گذشته است.`;
+            } else {
+                statsHtml += `<span style="opacity:0.7;">این ماه، ماه جاری نیست.</span>`;
+            }
+            statsHtml += '</div>';
+
+            container.innerHTML = html + statsHtml;
         }
 
         function applyLoadedContent(parsed) {
@@ -57,6 +141,7 @@
             data.tasks = parsed.tasks || [];
             data.taskCompletions = parsed.taskCompletions || [];
             data.workHours = parsed.workHours || [];
+            data.customHolidays = parsed.customHolidays || [];
         }
 
         function withTimeout(promise, ms = 8000) {
@@ -77,6 +162,7 @@
                 setSyncStatus('offline');
                 updateVisitorUI();
                 renderMap();
+                renderCalendar();
                 return;
             }
             try {
@@ -100,6 +186,7 @@
             }
             updateVisitorUI();
             renderMap();
+            renderCalendar();
         }
 
         async function refreshFromServer() {
@@ -701,7 +788,7 @@
 
         async function clearData() {
             if (confirm("آیا مطمئن هستید؟ تمام ویزیتورها، فروشگاه‌ها، مناطق، تسک‌ها، ویزیت‌ها و ساعت‌های کاری روی سرور نیز پاک خواهند شد!")) {
-                data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [], workHours: [] };
+                data = { visitors: [], stores: [], routes: [], visits: [], tasks: [], taskCompletions: [], workHours: [], customHolidays: [] };
                 await saveAllData();
                 location.reload();
             }
