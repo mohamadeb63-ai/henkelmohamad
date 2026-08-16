@@ -99,6 +99,7 @@
             for (let i = 0; i < startOffset; i++) { html += '<td></td>'; col++; }
 
             let workingDays = 0;
+            let workingDaysElapsed = 0;
             for (let d = 1; d <= daysInMonth; d++) {
                 const dateObj = new Date(year, month, d);
                 const isFriday = ((dateObj.getDay() + 1) % 7) === 6;
@@ -107,7 +108,10 @@
                 const isHoliday = isFriday || isCustomHoliday;
                 const isToday = dateStr === todayStr;
 
-                if (!isHoliday) workingDays++;
+                if (!isHoliday) {
+                    workingDays++;
+                    if (isCurrentMonth && d <= now.getDate()) workingDaysElapsed++;
+                }
 
                 let style = 'padding:6px 2px; cursor:pointer; border-radius:5px;';
                 if (isHoliday) style += 'background:#ffe0e0; color:var(--primary); font-weight:bold;';
@@ -123,8 +127,8 @@
             let statsHtml = `<div class="muted" style="margin-top:10px; line-height:2;">
                 📊 این ماه <b>${daysInMonth}</b> روز دارد که <b>${workingDays}</b> روز آن کاری است.<br>`;
             if (isCurrentMonth) {
-                const percent = ((now.getDate() / daysInMonth) * 100).toFixed(0);
-                statsHtml += `📅 تا امروز <b>${percent}%</b> از این ماه گذشته است.`;
+                const percent = workingDays > 0 ? ((workingDaysElapsed / workingDays) * 100).toFixed(0) : 0;
+                statsHtml += `📅 تا امروز <b>${workingDaysElapsed}</b> از <b>${workingDays}</b> روز کاری این ماه گذشته (<b>${percent}%</b>).`;
             } else {
                 statsHtml += `<span style="opacity:0.7;">این ماه، ماه جاری نیست.</span>`;
             }
@@ -745,43 +749,63 @@
             alert(`ویزیت از "${store.name}" برای ${store.visitor} ثبت شد.`);
         }
 
-        const periodMs = { week: 7 * 24 * 60 * 60 * 1000, month: 30 * 24 * 60 * 60 * 1000, sixmonth: 182 * 24 * 60 * 60 * 1000, year: 365 * 24 * 60 * 60 * 1000 };
-        const periodLabels = { week: 'یک هفته اخیر', month: 'یک ماه اخیر', sixmonth: 'شش ماه اخیر', year: 'یک سال اخیر' };
-
         function showReport() {
             const visitor = document.getElementById('reportVisitorSelect').value;
-            const period = document.getElementById('reportPeriodSelect').value;
+            const monthVal = document.getElementById('reportMonthSelect').value; // قالب "YYYY-MM"
             const resultDiv = document.getElementById('reportResult');
             resultDiv.style.display = 'block';
 
-            const cutoff = Date.now() - periodMs[period];
-            let filtered = data.visits.filter(v => v.timestamp >= cutoff);
-            if (visitor !== 'all') filtered = filtered.filter(v => v.visitor === visitor);
+            if (!monthVal) return alert('یک ماه را انتخاب کنید.');
+            const [yearStr, monthStr] = monthVal.split('-');
+            const year = parseInt(yearStr, 10);
+            const month = parseInt(monthStr, 10) - 1; // 0-indexed
+            const monthLabel = `${gregorianMonthNamesFa[month]} ${year}`;
 
-            if (filtered.length === 0) {
-                resultDiv.innerHTML = `<span class="muted">در بازه «${periodLabels[period]}» هیچ ویزیتی ثبت نشده است.</span>`;
+            let records = data.workHours.filter(w => {
+                const d = new Date(w.date + 'T00:00:00');
+                return d.getFullYear() === year && d.getMonth() === month;
+            });
+            if (visitor !== 'all') records = records.filter(w => w.visitor === visitor);
+
+            if (records.length === 0) {
+                resultDiv.innerHTML = `<span class="muted">برای «${monthLabel}» هیچ ساعت کاری ثبت نشده است.</span>`;
                 return;
             }
 
-            let html = `<b>بازه: ${periodLabels[period]}</b> - مجموع ویزیت‌ها: <span class="badge">${filtered.length}</span><br><br>`;
+            let html = `<b>گزارش ماه ${monthLabel}</b><br><br>`;
+
             if (visitor === 'all') {
-                const counts = {};
-                filtered.forEach(v => { counts[v.visitor] = (counts[v.visitor] || 0) + 1; });
-                html += '<table><tr><th>ویزیتور</th><th>تعداد ویزیت</th></tr>';
-                Object.keys(counts).sort((a, b) => counts[b] - counts[a]).forEach(name => {
-                    html += `<tr><td>${name}</td><td>${counts[name]}</td></tr>`;
+                const byVisitor = {};
+                records.forEach(r => {
+                    if (!byVisitor[r.visitor]) byVisitor[r.visitor] = { hours: 0, visits: 0, success: 0, days: 0 };
+                    byVisitor[r.visitor].hours += computeWorkedHours(r.checkIn, r.checkOut);
+                    byVisitor[r.visitor].visits += (r.visits || 0);
+                    byVisitor[r.visitor].success += (r.successVisits || 0);
+                    byVisitor[r.visitor].days += 1;
+                });
+                html += '<table><tr><th>ویزیتور</th><th>روز کاری</th><th>ساعت کار</th><th>ویزیت</th><th>موفق</th></tr>';
+                Object.keys(byVisitor).sort((a, b) => byVisitor[b].hours - byVisitor[a].hours).forEach(name => {
+                    const v = byVisitor[name];
+                    html += `<tr><td>${name}</td><td>${v.days}</td><td>${formatHoursMinutes(v.hours)}</td><td>${v.visits}</td><td>${v.success}</td></tr>`;
                 });
                 html += '</table>';
             } else {
-                const sorted = filtered.sort((a, b) => b.timestamp - a.timestamp).slice(0, 30);
-                html += '<table><tr><th>فروشگاه</th><th>تاریخ و ساعت</th></tr>';
-                sorted.forEach(v => {
-                    const d = new Date(v.timestamp);
-                    const dateStr = d.toLocaleDateString('fa-IR') + ' - ' + d.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
-                    html += `<tr><td>${v.storeName}</td><td>${dateStr}</td></tr>`;
+                const sorted = records.sort((a, b) => a.date.localeCompare(b.date));
+                let totalHours = 0, totalVisits = 0, totalSuccess = 0;
+                html += '<table><tr><th>تاریخ</th><th>ساعت کار</th><th>ویزیت</th><th>موفق</th></tr>';
+                sorted.forEach(r => {
+                    const hours = computeWorkedHours(r.checkIn, r.checkOut);
+                    totalHours += hours;
+                    totalVisits += (r.visits || 0);
+                    totalSuccess += (r.successVisits || 0);
+                    const dateStr = new Date(r.date + 'T00:00:00').toLocaleDateString('fa-IR');
+                    html += `<tr><td>${dateStr}</td><td>${formatHoursMinutes(hours)}</td><td>${r.visits || 0}</td><td>${r.successVisits || 0}</td></tr>`;
                 });
                 html += '</table>';
-                if (filtered.length > 30) html += `<div class="muted">فقط ۳۰ مورد آخر نمایش داده شده است.</div>`;
+                html += `<div class="muted" style="margin-top:8px; line-height:1.9;">
+                    مجموع ساعت کار: <b>${formatHoursMinutes(totalHours)}</b> در <b>${sorted.length}</b> روز کاری<br>
+                    مجموع ویزیت: <b>${totalVisits}</b> | مجموع ویزیت موفق: <b>${totalSuccess}</b>
+                </div>`;
             }
             resultDiv.innerHTML = html;
         }
@@ -795,26 +819,6 @@
         }
 
         // ---------- ساعت کاری پرسنل ----------
-        const jalaliMonthNames = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
-
-        // تبدیل تاریخ میلادی به شمسی (الگوریتم استاندارد)
-        function gregorianToJalali(gy, gm, gd) {
-            const g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
-            let jy;
-            if (gy <= 1600) { jy = 0; gy -= 621; }
-            else { jy = 979; gy -= 1600; }
-            const gy2 = (gm > 2) ? (gy + 1) : gy;
-            let days = (365 * gy) + parseInt((gy2 + 3) / 4) - parseInt((gy2 + 99) / 100) + parseInt((gy2 + 399) / 400) - 80 + gd + g_d_m[gm - 1];
-            jy += 33 * parseInt(days / 12053);
-            days %= 12053;
-            jy += 4 * parseInt(days / 1461);
-            days %= 1461;
-            if (days > 365) { jy += parseInt((days - 1) / 365); days = (days - 1) % 365; }
-            let jm, jd;
-            if (days < 186) { jm = 1 + parseInt(days / 31); jd = 1 + (days % 31); }
-            else { jm = 7 + parseInt((days - 186) / 30); jd = 1 + ((days - 186) % 30); }
-            return { jy, jm, jd };
-        }
 
         function computeWorkedHours(checkIn, checkOut) {
             const [h1, m1] = checkIn.split(':').map(Number);
@@ -824,6 +828,23 @@
             return minutes / 60;
         }
 
+        // تبدیل ساعت اعشاری به قالب «H ساعت و M دقیقه»
+        function formatHoursMinutes(decimalHours) {
+            const totalMinutes = Math.round(decimalHours * 60);
+            const h = Math.floor(totalMinutes / 60);
+            const m = totalMinutes % 60;
+            if (h === 0) return `${m} دقیقه`;
+            if (m === 0) return `${h} ساعت`;
+            return `${h} ساعت و ${m} دقیقه`;
+        }
+
+        let workHoursViewDate = new Date();
+
+        function changeWorkHoursMonth(delta) {
+            workHoursViewDate.setMonth(workHoursViewDate.getMonth() + delta);
+            renderWorkHours(document.getElementById('workHoursVisitorSelect').value);
+        }
+
         function addWorkHour() {
             const visitor = document.getElementById('workHoursVisitorSelect').value;
             if (!visitor) return alert('ابتدا ویزیتور را انتخاب کنید.');
@@ -831,17 +852,24 @@
             const checkIn = document.getElementById('workHoursCheckIn').value;
             const checkOut = document.getElementById('workHoursCheckOut').value;
             const visits = parseInt(document.getElementById('workHoursVisits').value, 10) || 0;
+            const successVisits = parseInt(document.getElementById('workHoursSuccessVisits').value, 10) || 0;
 
             if (!dateVal || !checkIn || !checkOut) return alert('تاریخ، ساعت ورود و ساعت خروج را وارد کنید.');
+            if (successVisits > visits) return alert('تعداد ویزیت موفق نمی‌تواند بیشتر از تعداد کل ویزیت باشد.');
 
             // جایگزینی رکورد قبلی همان تاریخ برای همان ویزیتور
             data.workHours = data.workHours.filter(w => !(w.visitor === visitor && w.date === dateVal));
-            data.workHours.push({ id: Date.now(), visitor, date: dateVal, checkIn, checkOut, visits });
+            data.workHours.push({ id: Date.now(), visitor, date: dateVal, checkIn, checkOut, visits, successVisits });
             saveAllData();
 
             document.getElementById('workHoursCheckIn').value = '';
             document.getElementById('workHoursCheckOut').value = '';
             document.getElementById('workHoursVisits').value = '';
+            document.getElementById('workHoursSuccessVisits').value = '';
+
+            // پرش به ماهی که رکورد در آن ثبت شد
+            const d = new Date(dateVal + 'T00:00:00');
+            workHoursViewDate = new Date(d.getFullYear(), d.getMonth(), 1);
 
             renderWorkHours(visitor);
         }
@@ -859,44 +887,54 @@
                 container.innerHTML = '<span class="muted">ابتدا یک ویزیتور انتخاب کنید.</span>';
                 return;
             }
-            const records = data.workHours.filter(w => w.visitor === visitor).sort((a, b) => a.date.localeCompare(b.date));
+
+            const year = workHoursViewDate.getFullYear();
+            const month = workHoursViewDate.getMonth();
+            const monthLabel = `${gregorianMonthNamesFa[month]} ${year}`;
+
+            const nav = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <button onclick="changeWorkHoursMonth(-1)" style="width:auto; padding:5px 12px; margin:0;">ماه قبل ›</button>
+                <b>📅 ${monthLabel}</b>
+                <button onclick="changeWorkHoursMonth(1)" style="width:auto; padding:5px 12px; margin:0;">‹ ماه بعد</button>
+            </div>`;
+
+            const records = data.workHours.filter(w => {
+                if (w.visitor !== visitor) return false;
+                const d = new Date(w.date + 'T00:00:00');
+                return d.getFullYear() === year && d.getMonth() === month;
+            }).sort((a, b) => a.date.localeCompare(b.date));
+
             if (records.length === 0) {
-                container.innerHTML = '<span class="muted">هنوز ساعت کاری برای این ویزیتور ثبت نشده است.</span>';
+                container.innerHTML = nav + '<span class="muted">در این ماه ساعت کاری برای این ویزیتور ثبت نشده است.</span>';
                 return;
             }
 
-            const groups = {};
+            let totalHours = 0, totalVisits = 0, totalSuccess = 0;
+            let html = nav + '<table><tr><th>تاریخ</th><th>ورود</th><th>خروج</th><th>ساعت کار</th><th>ویزیت</th><th>موفق</th><th></th></tr>';
             records.forEach(r => {
-                const d = new Date(r.date + 'T00:00:00');
-                const { jy, jm } = gregorianToJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
-                const key = jy + '-' + String(jm).padStart(2, '0');
-                if (!groups[key]) groups[key] = { jy, jm, items: [], totalHours: 0, totalVisits: 0 };
                 const hours = computeWorkedHours(r.checkIn, r.checkOut);
-                groups[key].items.push({ ...r, hours });
-                groups[key].totalHours += hours;
-                groups[key].totalVisits += (r.visits || 0);
+                totalHours += hours;
+                totalVisits += (r.visits || 0);
+                totalSuccess += (r.successVisits || 0);
+                const lowHours = hours < 8;
+                const dObj = new Date(r.date + 'T00:00:00');
+                const dateStr = dObj.toLocaleDateString('fa-IR');
+                html += `<tr style="${lowHours ? 'background:#fff3cd;' : ''}">
+                    <td>${dateStr}</td>
+                    <td>${r.checkIn}</td>
+                    <td>${r.checkOut}</td>
+                    <td>${formatHoursMinutes(hours)}</td>
+                    <td>${r.visits || 0}</td>
+                    <td>${r.successVisits || 0}</td>
+                    <td><button onclick="deleteWorkHour(${r.id})" style="width:auto; padding:3px 7px; margin:0; background:#6c757d; font-size:11px;">حذف</button></td>
+                </tr>`;
             });
+            html += '</table>';
+            html += `<div class="muted" style="margin-top:8px; line-height:1.9;">
+                مجموع ساعت کار این ماه: <b>${formatHoursMinutes(totalHours)}</b><br>
+                مجموع ویزیت: <b>${totalVisits}</b> | مجموع ویزیت موفق: <b>${totalSuccess}</b>
+            </div>`;
 
-            let html = '';
-            Object.keys(groups).sort().forEach(key => {
-                const g = groups[key];
-                html += `<div style="margin-bottom:16px;"><b>📅 ${jalaliMonthNames[g.jm - 1]} ${g.jy}</b>`;
-                html += '<table><tr><th>تاریخ</th><th>ورود</th><th>خروج</th><th>ساعت کار</th><th>ویزیت</th><th></th></tr>';
-                g.items.forEach(it => {
-                    const dObj = new Date(it.date + 'T00:00:00');
-                    const dateStr = dObj.toLocaleDateString('fa-IR');
-                    const lowHours = it.hours < 8;
-                    html += `<tr style="${lowHours ? 'background:#fff3cd;' : ''}">
-                        <td>${dateStr}</td>
-                        <td>${it.checkIn}</td>
-                        <td>${it.checkOut}</td>
-                        <td>${it.hours.toFixed(1)}</td>
-                        <td>${it.visits || 0}</td>
-                        <td><button onclick="deleteWorkHour(${it.id})" style="width:auto; padding:3px 7px; margin:0; background:#6c757d; font-size:11px;">حذف</button></td>
-                    </tr>`;
-                });
-                html += `</table><div class="muted" style="margin-top:4px;">مجموع ساعت کار این ماه: <b>${g.totalHours.toFixed(1)}</b> ساعت | مجموع ویزیت این ماه: <b>${g.totalVisits}</b></div></div>`;
-            });
             container.innerHTML = html;
         }
 
@@ -907,11 +945,15 @@
         // پیش‌فرض تاریخ امروز برای بخش ساعت کاری
         (function setDefaultWorkHoursDate() {
             const dateInput = document.getElementById('workHoursDate');
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
             if (dateInput) {
-                const now = new Date();
-                const y = now.getFullYear();
-                const m = String(now.getMonth() + 1).padStart(2, '0');
-                const d = String(now.getDate()).padStart(2, '0');
                 dateInput.value = `${y}-${m}-${d}`;
+            }
+            const monthInput = document.getElementById('reportMonthSelect');
+            if (monthInput) {
+                monthInput.value = `${y}-${m}`;
             }
         })();
