@@ -127,6 +127,8 @@
 
         #map { flex: 1; height: 100%; z-index: 1; }
         .map-crosshair { cursor: crosshair !important; }
+        /* در حالت ثبت فروشگاه/رسم منطقه، کلیک باید از داخل منطقه‌های رسم‌شده رد شده و به نقشه برسد */
+        .map-crosshair .leaflet-overlay-pane { pointer-events: none; }
 
         ul { padding-right: 20px; margin: 10px 0 5px 0; font-size: 14px; }
         li { margin-bottom: 5px; }
