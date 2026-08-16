@@ -219,7 +219,18 @@
             list.innerHTML = "";
             data.visitors.forEach(v => {
                 let li = document.createElement('li');
-                li.innerText = v;
+                li.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:8px; list-style:none;';
+
+                let nameSpan = document.createElement('span');
+                nameSpan.innerText = v;
+
+                let editBtn = document.createElement('button');
+                editBtn.innerText = '✏️ ویرایش';
+                editBtn.style.cssText = 'width:auto; padding:3px 8px; margin:0; background:var(--warning); font-size:11px;';
+                editBtn.onclick = function () { editVisitorName(v); };
+
+                li.appendChild(nameSpan);
+                li.appendChild(editBtn);
                 list.appendChild(li);
             });
 
@@ -228,6 +239,29 @@
             fillSelectWithVisitors('reportVisitorSelect', 'همه ویزیتورها', true);
             fillSelectWithVisitors('weeklyVisitorSelect', 'انتخاب ویزیتور...');
             fillSelectWithVisitors('workHoursVisitorSelect', 'انتخاب ویزیتور...');
+        }
+
+        function editVisitorName(oldName) {
+            const newName = prompt("نام جدید ویزیتور:", oldName);
+            if (newName === null) return;
+            const trimmed = newName.trim();
+            if (trimmed === '') return alert('نام نمی‌تواند خالی باشد.');
+            if (trimmed === oldName) return;
+            if (data.visitors.includes(trimmed)) return alert('این نام قبلاً برای ویزیتور دیگری ثبت شده است.');
+
+            // به‌روزرسانی نام در همه بخش‌های سیستم
+            const idx = data.visitors.indexOf(oldName);
+            if (idx !== -1) data.visitors[idx] = trimmed;
+            data.stores.forEach(s => { if (s.visitor === oldName) s.visitor = trimmed; });
+            data.routes.forEach(r => { if (r.visitor === oldName) r.visitor = trimmed; });
+            data.tasks.forEach(t => { if (t.visitor === oldName) t.visitor = trimmed; });
+            data.workHours.forEach(w => { if (w.visitor === oldName) w.visitor = trimmed; });
+            data.visits.forEach(vv => { if (vv.visitor === oldName) vv.visitor = trimmed; });
+
+            saveAllData();
+            updateVisitorUI();
+            renderMap();
+            alert('نام ویزیتور با موفقیت به‌روزرسانی شد.');
         }
 
         function fillTaskDaySelect() {
