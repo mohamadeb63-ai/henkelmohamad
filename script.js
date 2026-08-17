@@ -470,6 +470,19 @@
         }
 
         map.on('click', function (e) {
+            if (storeToMove) {
+                const store = data.stores.find(s => s.id === storeToMove);
+                if (store) {
+                    store.lat = e.latlng.lat;
+                    store.lng = e.latlng.lng;
+                    saveAllData();
+                    renderMap();
+                    alert('مکان فروشگاه با موفقیت به‌روزرسانی شد.');
+                }
+                storeToMove = null;
+                mapContainer.classList.remove('map-crosshair');
+                return;
+            }
             if (isStoreMode) {
                 if (data.visitors.length === 0) return alert("ابتدا ویزیتور ثبت کنید.");
                 
@@ -497,7 +510,7 @@
                 if (tempPolyline) map.removeLayer(tempPolyline);
                 const dayForColor = parseInt(document.getElementById('routeDaySelect').value, 10) || 0;
                 const previewColor = routeColors[dayForColor % routeColors.length];
-                tempPolyline = L.polygon(currentRoutePoints, { color: previewColor, weight: 3, fillOpacity: 0.25 }).addTo(map);
+                tempPolyline = L.polygon(currentRoutePoints, { color: previewColor, weight: 3, fillOpacity: 0.25, interactive: false }).addTo(map);
             }
         });
 
@@ -524,7 +537,7 @@
         });
 
         function drawStore(store) {
-            let marker = L.marker([store.lat, store.lng]);
+            let marker = L.marker([store.lat, store.lng], { draggable: true });
             let popupContent = `
                 <div class="store-popup">
                     <h4>🏪 ${store.name}</h4>
@@ -534,8 +547,29 @@
                     <b>ویزیتور:</b> ${store.visitor}<br>
                     <button class="info-btn" onclick="logVisit(${store.id})">✅ ثبت ویزیت امروز</button>
                     <button class="warning-btn" onclick="editStore(${store.id})">✏️ ویرایش فروشگاه</button>
+                    <button class="action-btn" onclick="startMoveStore(${store.id})">📍 جابجایی مکان (با کلیک روی نقشه)</button>
+                    <p class="helper-text" style="margin-top:8px;">همچنین می‌توانید آیکون فروشگاه را روی نقشه بکشید و رها کنید.</p>
                 </div>`;
-            marker.bindPopup(popupContent).addTo(storesLayer);
+            marker.bindPopup(popupContent);
+
+            marker.on('dragend', function () {
+                const pos = marker.getLatLng();
+                store.lat = pos.lat;
+                store.lng = pos.lng;
+                saveAllData();
+            });
+
+            marker.addTo(storesLayer);
+        }
+
+        let storeToMove = null;
+
+        function startMoveStore(id) {
+            if (isStoreMode || isRouteMode || isEditRouteMode) return alert('ابتدا حالت فعلی (ثبت فروشگاه/رسم منطقه) را ببندید.');
+            storeToMove = id;
+            map.closePopup();
+            mapContainer.classList.add('map-crosshair');
+            alert('روی نقطه جدید روی نقشه کلیک کنید تا مکان فروشگاه به آنجا منتقل شود.');
         }
 
         function editStore(id) {
@@ -625,7 +659,7 @@
                 editMarkers = [];
                 let points = route.points.map(p => [p[0], p[1]]);
                 
-                editPolyline = L.polygon(points, { color: 'orange', weight: 4, dashArray: '8, 8', fillOpacity: 0.2 }).addTo(map);
+                editPolyline = L.polygon(points, { color: 'orange', weight: 4, dashArray: '8, 8', fillOpacity: 0.2, interactive: false }).addTo(map);
                 
                 // ایجاد مارکرهای قابل درگ
                 points.forEach((pt, idx) => {
@@ -673,9 +707,7 @@
         function drawRoutes() {
             data.routes.forEach(route => {
                 const color = routeColors[route.day % routeColors.length];
-                const insideCount = storesInRoute(route).length;
-                L.polygon(route.points, { color: color, weight: 3, fillColor: color, fillOpacity: 0.15 })
-                  .bindPopup(`ویزیتور: ${route.visitor} | روز: ${dayNames[route.day]} | فروشگاه داخل منطقه: ${insideCount}`)
+                L.polygon(route.points, { color: color, weight: 3, fillColor: color, fillOpacity: 0.15, interactive: false })
                   .addTo(routesLayer);
             });
         }
@@ -726,7 +758,7 @@
                 return;
             }
 
-            const polygonLayer = L.polygon(route.points, { color: '#28a745', weight: 4, fillOpacity: 0.25, opacity: 0.9 }).addTo(todayRouteLayer);
+            const polygonLayer = L.polygon(route.points, { color: '#28a745', weight: 4, fillOpacity: 0.25, opacity: 0.9, interactive: false }).addTo(todayRouteLayer);
             map.fitBounds(polygonLayer.getBounds(), { padding: [30, 30] });
 
             const inside = storesInRoute(route);
