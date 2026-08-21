@@ -284,6 +284,32 @@
         // ---------- جستجوی مکان روی نقشه (OpenStreetMap Nominatim) ----------
         let searchMarker = null;
 
+        const MapSearchControl = L.Control.extend({
+            options: { position: 'topright' },
+            onAdd: function () {
+                const container = L.DomUtil.create('div', 'leaflet-bar');
+                container.style.background = 'transparent';
+                container.style.border = 'none';
+                container.style.boxShadow = 'none';
+                container.innerHTML = `
+                    <div id="mapSearchBox">
+                        <input type="text" id="mapSearchInput" placeholder="جستجوی خیابان، کوچه، مکان...">
+                        <button id="mapSearchBtn">🔍</button>
+                    </div>
+                    <div id="mapSearchResults"></div>
+                `;
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.disableScrollPropagation(container);
+                return container;
+            }
+        });
+        map.addControl(new MapSearchControl());
+
+        document.getElementById('mapSearchBtn').addEventListener('click', searchOnMap);
+        document.getElementById('mapSearchInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') searchOnMap();
+        });
+
         async function searchOnMap() {
             const query = document.getElementById('mapSearchInput').value.trim();
             const resultsBox = document.getElementById('mapSearchResults');
@@ -588,7 +614,7 @@
         });
 
         function drawStore(store) {
-            let marker = L.marker([store.lat, store.lng], { draggable: true });
+            let marker = L.marker([store.lat, store.lng]);
             let popupContent = `
                 <div class="store-popup">
                     <h4>🏪 ${store.name}</h4>
@@ -598,18 +624,9 @@
                     <b>ویزیتور:</b> ${store.visitor}<br>
                     <button class="info-btn" onclick="logVisit(${store.id})">✅ ثبت ویزیت امروز</button>
                     <button class="warning-btn" onclick="editStore(${store.id})">✏️ ویرایش فروشگاه</button>
-                    <button class="action-btn" onclick="startMoveStore(${store.id})">📍 جابجایی مکان (با کلیک روی نقشه)</button>
-                    <p class="helper-text" style="margin-top:8px;">همچنین می‌توانید آیکون فروشگاه را روی نقشه بکشید و رها کنید.</p>
+                    <button class="action-btn" onclick="startMoveStore(${store.id})">📍 جابجایی مکان</button>
                 </div>`;
             marker.bindPopup(popupContent);
-
-            marker.on('dragend', function () {
-                const pos = marker.getLatLng();
-                store.lat = pos.lat;
-                store.lng = pos.lng;
-                saveAllData();
-            });
-
             marker.addTo(storesLayer);
         }
 
