@@ -281,6 +281,57 @@
         const todayRouteLayer = L.layerGroup().addTo(map);
         const mapContainer = document.getElementById('map');
 
+        // ---------- جستجوی مکان روی نقشه (OpenStreetMap Nominatim) ----------
+        let searchMarker = null;
+
+        async function searchOnMap() {
+            const query = document.getElementById('mapSearchInput').value.trim();
+            const resultsBox = document.getElementById('mapSearchResults');
+            if (!query) return;
+
+            resultsBox.style.display = 'block';
+            resultsBox.innerHTML = '<div class="search-result-item">🔄 در حال جستجو...</div>';
+
+            try {
+                // محدود کردن جستجو به اطراف منطقه فعلی نقشه برای نتایج دقیق‌تر
+                const center = map.getCenter();
+                const viewbox = [center.lng - 0.5, center.lat + 0.5, center.lng + 0.5, center.lat - 0.5].join(',');
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${viewbox}&bounded=0&limit=6&accept-language=fa`;
+
+                const res = await withTimeout(fetch(url), 10000);
+                const results = await res.json();
+
+                if (!results || results.length === 0) {
+                    resultsBox.innerHTML = '<div class="search-result-item">نتیجه‌ای پیدا نشد.</div>';
+                    return;
+                }
+
+                resultsBox.innerHTML = '';
+                results.forEach(r => {
+                    const item = document.createElement('div');
+                    item.className = 'search-result-item';
+                    item.innerText = r.display_name;
+                    item.onclick = function () {
+                        const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
+                        map.setView([lat, lon], 17);
+                        if (searchMarker) map.removeLayer(searchMarker);
+                        searchMarker = L.marker([lat, lon], {
+                            icon: L.divIcon({
+                                className: '',
+                                html: '<div style="background:var(--secondary); width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow:0 0 4px rgba(0,0,0,0.5);"></div>',
+                                iconSize: [16, 16], iconAnchor: [8, 8]
+                            })
+                        }).addTo(map).bindPopup(r.display_name).openPopup();
+                        resultsBox.style.display = 'none';
+                    };
+                    resultsBox.appendChild(item);
+                });
+            } catch (e) {
+                console.error('خطا در جستجوی مکان:', e);
+                resultsBox.innerHTML = '<div class="search-result-item">خطا در جستجو. اتصال اینترنت را بررسی کنید.</div>';
+            }
+        }
+
         function fillDaySelect() {
             const sel = document.getElementById('routeDaySelect');
             sel.innerHTML = '';
