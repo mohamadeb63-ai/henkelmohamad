@@ -293,7 +293,7 @@
                 container.style.boxShadow = 'none';
                 container.innerHTML = `
                     <div id="mapSearchBox">
-                        <input type="text" id="mapSearchInput" placeholder="جستجوی خیابان، کوچه، مکان...">
+                        <input type="text" id="mapSearchInput" placeholder="جستجو یا کپی مختصات گوگل مپ..." title="می‌توانید نام مکان، یا مختصات کپی‌شده از گوگل مپ (مثل 36.24, 46.27)، یا لینک کامل گوگل مپ را وارد کنید">
                         <button id="mapSearchBtn">🔍</button>
                     </div>
                     <div id="mapSearchResults"></div>
@@ -310,11 +310,56 @@
             if (e.key === 'Enter') searchOnMap();
         });
 
+        function jumpToCoordinate(lat, lon, label) {
+            map.setView([lat, lon], 17);
+            if (searchMarker) map.removeLayer(searchMarker);
+            searchMarker = L.marker([lat, lon], {
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="background:var(--secondary); width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow:0 0 4px rgba(0,0,0,0.5);"></div>',
+                    iconSize: [16, 16], iconAnchor: [8, 8]
+                })
+            }).addTo(map).bindPopup(label || `${lat.toFixed(6)}, ${lon.toFixed(6)}`).openPopup();
+        }
+
+        // تشخیص مختصات کپی‌شده از گوگل مپ (مثال: 36.2447, 46.2736)
+        function tryParseCoordinates(text) {
+            const match = text.match(/^\s*(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/);
+            if (!match) return null;
+            const lat = parseFloat(match[1]), lon = parseFloat(match[2]);
+            if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+            return { lat, lon };
+        }
+
+        // تشخیص مختصات از لینک کامل گوگل مپ (مثال: .../@36.2447,46.2736,17z)
+        function tryParseGoogleMapsLink(text) {
+            const match = text.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+            if (!match) return null;
+            return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+        }
+
         async function searchOnMap() {
             const query = document.getElementById('mapSearchInput').value.trim();
             const resultsBox = document.getElementById('mapSearchResults');
             if (!query) return;
 
+            // حالت ۱: مختصات مستقیم کپی‌شده (مثلا از گوگل مپ)
+            const coords = tryParseCoordinates(query);
+            if (coords) {
+                jumpToCoordinate(coords.lat, coords.lon, 'مکان وارد شده');
+                resultsBox.style.display = 'none';
+                return;
+            }
+
+            // حالت ۲: لینک کامل گوگل مپ حاوی مختصات (@lat,lon)
+            const linkCoords = tryParseGoogleMapsLink(query);
+            if (linkCoords) {
+                jumpToCoordinate(linkCoords.lat, linkCoords.lon, 'مکان وارد شده از لینک گوگل مپ');
+                resultsBox.style.display = 'none';
+                return;
+            }
+
+            // حالت ۳: جستجوی متنی معمولی (نام خیابان، کوچه، مکان)
             resultsBox.style.display = 'block';
             resultsBox.innerHTML = '<div class="search-result-item">🔄 در حال جستجو...</div>';
 
@@ -338,16 +383,7 @@
                     item.className = 'search-result-item';
                     item.innerText = r.display_name;
                     item.onclick = function () {
-                        const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
-                        map.setView([lat, lon], 17);
-                        if (searchMarker) map.removeLayer(searchMarker);
-                        searchMarker = L.marker([lat, lon], {
-                            icon: L.divIcon({
-                                className: '',
-                                html: '<div style="background:var(--secondary); width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow:0 0 4px rgba(0,0,0,0.5);"></div>',
-                                iconSize: [16, 16], iconAnchor: [8, 8]
-                            })
-                        }).addTo(map).bindPopup(r.display_name).openPopup();
+                        jumpToCoordinate(parseFloat(r.lat), parseFloat(r.lon), r.display_name);
                         resultsBox.style.display = 'none';
                     };
                     resultsBox.appendChild(item);
