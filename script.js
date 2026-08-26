@@ -533,9 +533,12 @@
             }
             let html = '';
             dayNames.forEach((name, d) => {
-                const route = data.routes.find(r => r.visitor === visitor && r.day === d);
+                const regions = data.routes.filter(r => r.visitor === visitor && r.day === d);
                 let routeInfo = '<span class="muted">بدون منطقه</span>';
-                if (route) routeInfo = `<span class="badge">${storesInRoute(route).length} فروشگاه</span>`;
+                if (regions.length > 0) {
+                    const totalStores = regions.reduce((sum, r) => sum + storesInRoute(r).length, 0);
+                    routeInfo = `<span class="badge">${regions.length} منطقه - ${totalStores} فروشگاه</span>`;
+                }
 
                 const dayTasks = data.tasks.filter(t => t.visitor === visitor && (t.day === d || t.day === 'any'));
                 html += `<div style="border-bottom:1px solid #eee; padding:6px 0;"><b>${name}</b> - ${routeInfo}`;
@@ -644,8 +647,7 @@
                 let visitor = document.getElementById('routeVisitorSelect').value;
                 let day = parseInt(document.getElementById('routeDaySelect').value, 10);
                 
-                // جایگزین منطقه قبلی
-                data.routes = data.routes.filter(r => !(r.visitor === visitor && r.day === day));
+                // اضافه کردن به‌عنوان منطقه جدید (بدون حذف مناطق قبلی همان روز)
                 data.routes.push({ id: Date.now(), visitor: visitor, day: day, points: currentRoutePoints });
                 saveAllData();
 
@@ -653,6 +655,7 @@
                 if (tempPolyline) { map.removeLayer(tempPolyline); tempPolyline = null; }
                 toggleRouteMode(); // خروج از حالت رسم
                 renderMap();
+                renderRoutesListForDay();
                 
                 alert('منطقه با موفقیت ذخیره شد.');
             }
@@ -754,76 +757,114 @@
             }
         }
 
-        function toggleEditRouteMode() {
-            let visitor = document.getElementById('routeVisitorSelect').value;
-            let day = parseInt(document.getElementById('routeDaySelect').value, 10);
-            const helper = document.getElementById('routeHelperText');
+        let editingRouteId = null;
 
-            if (!isEditRouteMode) {
-                if (!visitor) return alert("ابتدا ویزیتور را انتخاب کنید.");
-                
-                let routeIndex = data.routes.findIndex(r => r.visitor === visitor && r.day === day);
-                if (routeIndex === -1) return alert("منطقه‌ای برای این ویزیتور در این روز وجود ندارد تا ویرایش شود.");
-                
-                // شروع ویرایش
-                isEditRouteMode = true;
-                document.getElementById('editRouteBtn').innerText = "💾 ذخیره ویرایش";
-                document.getElementById('editRouteBtn').style.background = "var(--success)";
-                document.getElementById('addRouteBtn').disabled = true;
-                
-                helper.style.display = 'block';
-                helper.innerText = "نقاط (دایره‌های روی منطقه) را با موس گرفته و جابجا کنید. سپس دکمه ذخیره ویرایش را بزنید.";
-                
-                // مخفی کردن مناطق اصلی
-                routesLayer.clearLayers();
-                
-                let route = data.routes[routeIndex];
-                editMarkers = [];
-                let points = route.points.map(p => [p[0], p[1]]);
-                
-                editPolyline = L.polygon(points, { color: 'orange', weight: 4, dashArray: '8, 8', fillOpacity: 0.2, interactive: false }).addTo(map);
-                
-                // ایجاد مارکرهای قابل درگ
-                points.forEach((pt, idx) => {
-                    let marker = L.marker(pt, { draggable: true }).addTo(map);
-                    marker.on('drag', function(e) {
-                        let newPos = marker.getLatLng();
-                        points[idx] = [newPos.lat, newPos.lng];
-                        editPolyline.setLatLngs(points); // آپدیت خط حین کشیدن
-                    });
-                    editMarkers.push(marker);
-                });
-                
-                map.fitBounds(editPolyline.getBounds(), { padding: [30, 30] });
+        function renderRoutesListForDay() {
+            const container = document.getElementById('routesListForDay');
+            if (!container) return;
+            const visitor = document.getElementById('routeVisitorSelect').value;
+            const day = parseInt(document.getElementById('routeDaySelect').value, 10);
 
-            } else {
-                // پایان و ذخیره ویرایش
-                let newPoints = editMarkers.map(m => {
-                    let pos = m.getLatLng();
-                    return [pos.lat, pos.lng];
-                });
-                
-                let routeIndex = data.routes.findIndex(r => r.visitor === visitor && r.day === day);
-                if (routeIndex !== -1) {
-                    data.routes[routeIndex].points = newPoints;
-                    saveAllData();
-                }
-                
-                // خروج از حالت ویرایش
-                isEditRouteMode = false;
-                document.getElementById('editRouteBtn').innerText = "⚙️ ویرایش منطقه";
-                document.getElementById('editRouteBtn').style.background = "var(--warning)";
-                document.getElementById('addRouteBtn').disabled = false;
-                helper.style.display = 'none';
-                
-                // پاکسازی مارکرهای ویرایش
-                editMarkers.forEach(m => map.removeLayer(m));
-                editMarkers = [];
-                if (editPolyline) map.removeLayer(editPolyline);
-                
-                renderMap();
-                alert("منطقه با موفقیت به‌روزرسانی شد.");
+            if (!visitor) { container.style.display = 'none'; return; }
+
+            const regions = data.routes.filter(r => r.visitor === visitor && r.day === day);
+            container.style.display = 'block';
+            if (regions.length === 0) {
+                container.innerHTML = '<span class="muted">هنوز منطقه‌ای برای این روز ثبت نشده است.</span>';
+                return;
             }
+            let html = `<b>مناطق ثبت‌شده (${regions.length}):</b><ul style="list-style:none; padding:0; margin:8px 0 0 0;">`;
+            regions.forEach((r, idx) => {
+                const count = storesInRoute(r).length;
+                html += `<li style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #eee;">
+                    <span>منطقه ${idx + 1} <span class="badge">${count} فروشگاه</span></span>
+                    <span style="display:flex; gap:6px;">
+                        <button onclick="startEditRegion(${r.id})" style="width:auto; padding:4px 10px; margin:0; background:var(--warning); font-size:11px;">✏️ ویرایش</button>
+                        <button onclick="deleteRegion(${r.id})" style="width:auto; padding:4px 10px; margin:0; background:#6c757d; font-size:11px;">🗑 حذف</button>
+                    </span>
+                </li>`;
+            });
+            html += '</ul>';
+            container.innerHTML = html;
+        }
+
+        function deleteRegion(id) {
+            if (isEditRouteMode) return alert('ابتدا ویرایش فعلی را ذخیره یا لغو کنید.');
+            if (!confirm('آیا از حذف این منطقه مطمئن هستید؟')) return;
+            data.routes = data.routes.filter(r => r.id !== id);
+            saveAllData();
+            renderMap();
+            renderRoutesListForDay();
+        }
+
+        function startEditRegion(id) {
+            if (isEditRouteMode) return alert('ابتدا ویرایش فعلی را ذخیره کنید.');
+            if (isStoreMode || isRouteMode) return alert('ابتدا حالت فعلی (ثبت فروشگاه/رسم منطقه) را ببندید.');
+
+            const route = data.routes.find(r => r.id === id);
+            if (!route) return;
+
+            editingRouteId = id;
+            isEditRouteMode = true;
+            document.getElementById('editRouteBtn').innerText = "💾 ذخیره ویرایش";
+            document.getElementById('editRouteBtn').style.background = "var(--success)";
+            document.getElementById('addRouteBtn').disabled = true;
+
+            const helper = document.getElementById('routeHelperText');
+            helper.style.display = 'block';
+            helper.innerText = "نقاط (دایره‌های روی منطقه) را با موس گرفته و جابجا کنید. سپس دکمه ذخیره ویرایش را بزنید.";
+
+            routesLayer.clearLayers();
+
+            editMarkers = [];
+            let points = route.points.map(p => [p[0], p[1]]);
+
+            editPolyline = L.polygon(points, { color: 'orange', weight: 4, dashArray: '8, 8', fillOpacity: 0.2, interactive: false }).addTo(map);
+
+            points.forEach((pt, idx) => {
+                let marker = L.marker(pt, { draggable: true }).addTo(map);
+                marker.on('drag', function () {
+                    let newPos = marker.getLatLng();
+                    points[idx] = [newPos.lat, newPos.lng];
+                    editPolyline.setLatLngs(points);
+                });
+                editMarkers.push(marker);
+            });
+
+            map.fitBounds(editPolyline.getBounds(), { padding: [30, 30] });
+        }
+
+        function toggleEditRouteMode() {
+            if (!isEditRouteMode) {
+                return alert('برای ویرایش یک منطقه، از دکمه ✏️ ویرایش کنار آن در لیست «مناطق ثبت‌شده» استفاده کنید.');
+            }
+
+            // پایان و ذخیره ویرایش
+            let newPoints = editMarkers.map(m => {
+                let pos = m.getLatLng();
+                return [pos.lat, pos.lng];
+            });
+
+            const route = data.routes.find(r => r.id === editingRouteId);
+            if (route) {
+                route.points = newPoints;
+                saveAllData();
+            }
+
+            isEditRouteMode = false;
+            editingRouteId = null;
+            document.getElementById('editRouteBtn').innerText = "⚙️ ویرایش منطقه";
+            document.getElementById('editRouteBtn').style.background = "var(--warning)";
+            document.getElementById('addRouteBtn').disabled = false;
+            document.getElementById('routeHelperText').style.display = 'none';
+
+            editMarkers.forEach(m => map.removeLayer(m));
+            editMarkers = [];
+            if (editPolyline) map.removeLayer(editPolyline);
+
+            renderMap();
+            renderRoutesListForDay();
+            alert("منطقه با موفقیت به‌روزرسانی شد.");
         }
 
         function drawRoutes() {
@@ -873,21 +914,29 @@
             }
 
             const todayIdx = getIranianDay();
-            const route = data.routes.find(r => r.visitor === visitor && r.day === todayIdx);
+            const regions = data.routes.filter(r => r.visitor === visitor && r.day === todayIdx);
 
-            if (!route) {
+            if (regions.length === 0) {
                 resultDiv.innerHTML = `<span class="muted">برای <b>${visitor}</b> در روز <b>${dayNames[todayIdx]}</b> هنوز منطقه‌ای ثبت نشده است.</span>`;
                 return;
             }
 
-            const polygonLayer = L.polygon(route.points, { color: '#28a745', weight: 4, fillOpacity: 0.25, opacity: 0.9, interactive: false }).addTo(todayRouteLayer);
-            map.fitBounds(polygonLayer.getBounds(), { padding: [30, 30] });
+            let allBounds = null;
+            let allInside = [];
+            regions.forEach(route => {
+                const polygonLayer = L.polygon(route.points, { color: '#28a745', weight: 4, fillOpacity: 0.25, opacity: 0.9, interactive: false }).addTo(todayRouteLayer);
+                allBounds = allBounds ? allBounds.extend(polygonLayer.getBounds()) : polygonLayer.getBounds();
+                allInside = allInside.concat(storesInRoute(route));
+            });
+            map.fitBounds(allBounds, { padding: [30, 30] });
 
-            const inside = storesInRoute(route);
-            let html = `روز <b>${dayNames[todayIdx]}</b> - ویزیتور <b>${visitor}</b><br>`;
-            html += `<span class="badge">${inside.length} فروشگاه</span> داخل منطقه امروز<br>`;
-            if (inside.length > 0) {
-                html += '<ul>' + inside.map(s => `<li>فروشگای ${s.owner && s.owner.trim() !== '' ? s.owner : s.name} <span class="muted">(${s.type})</span></li>`).join('') + '</ul>';
+            // حذف فروشگاه‌های تکراری (اگر در چند منطقه هم‌پوشان باشند)
+            const uniqueInside = allInside.filter((s, idx) => allInside.findIndex(x => x.id === s.id) === idx);
+
+            let html = `روز <b>${dayNames[todayIdx]}</b> - ویزیتور <b>${visitor}</b> (${regions.length} منطقه)<br>`;
+            html += `<span class="badge">${uniqueInside.length} فروشگاه</span> داخل مناطق امروز<br>`;
+            if (uniqueInside.length > 0) {
+                html += '<ul>' + uniqueInside.map(s => `<li>فروشگای ${s.owner && s.owner.trim() !== '' ? s.owner : s.name} <span class="muted">(${s.type})</span></li>`).join('') + '</ul>';
             }
             resultDiv.innerHTML = html;
         }
