@@ -567,6 +567,15 @@
                 if (!storeName) return;
                 let storeType = prompt("نوع فروشگاه (سوپرمارکت، عمده و...):");
                 let ownerName = prompt("نام صاحب فروشگاه:");
+
+                if (ownerName && ownerName.trim() !== '') {
+                    const duplicate = data.stores.some(s => s.owner && s.owner.trim() === ownerName.trim());
+                    if (duplicate) {
+                        const proceed = confirm(`نام «${ownerName.trim()}» قبلاً برای فروشگاه دیگری ثبت شده است.\nآیا می‌خواهید همین نام را دوباره ذخیره کنید؟`);
+                        if (!proceed) return alert('ثبت فروشگاه لغو شد. دوباره تلاش کنید.');
+                    }
+                }
+
                 let phoneNumber = prompt("شماره تماس:");
 
                 let visitorText = "کد ویزیتور:\n";
@@ -648,6 +657,15 @@
             if (newName === null) return;
             let newType = prompt("نوع فروشگاه:", store.type || "");
             let newOwner = prompt("نام صاحب فروشگاه:", store.owner || "");
+
+            if (newOwner && newOwner.trim() !== '' && newOwner.trim() !== (store.owner || '').trim()) {
+                const duplicate = data.stores.some(s => s.id !== id && s.owner && s.owner.trim() === newOwner.trim());
+                if (duplicate) {
+                    const proceed = confirm(`نام «${newOwner.trim()}» قبلاً برای فروشگاه دیگری ثبت شده است.\nآیا می‌خواهید همین نام را دوباره ذخیره کنید؟`);
+                    if (!proceed) return alert('ویرایش لغو شد. تغییری اعمال نشد.');
+                }
+            }
+
             let newPhone = prompt("شماره تماس:", store.phone || "");
 
             let visitorText = "کد ویزیتور جدید (ویزیتور فعلی: " + store.visitor + "):\n";
@@ -833,7 +851,7 @@
             let html = `روز <b>${dayNames[todayIdx]}</b> - ویزیتور <b>${visitor}</b><br>`;
             html += `<span class="badge">${inside.length} فروشگاه</span> داخل منطقه امروز<br>`;
             if (inside.length > 0) {
-                html += '<ul>' + inside.map(s => `<li>${s.name} (${s.type})</li>`).join('') + '</ul>';
+                html += '<ul>' + inside.map(s => `<li>فروشگای ${s.owner && s.owner.trim() !== '' ? s.owner : s.name} <span class="muted">(${s.type})</span></li>`).join('') + '</ul>';
             }
             resultDiv.innerHTML = html;
         }
