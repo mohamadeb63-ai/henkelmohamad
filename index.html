@@ -58,16 +58,17 @@
         <!-- بخش 3 -->
         <div class="box">
             <h4 class="section-title">🗺 ۳. رسم و ویرایش منطقه فعالیت</h4>
-            <p class="helper-text">برای پایان رسم منطقه از کلید <b>Ctrl</b> روی کیبورد استفاده کنید (حداقل ۳ نقطه لازم است).</p>
-            <select id="routeVisitorSelect">
+            <p class="helper-text">هر ویزیتور می‌تواند چند منطقه جداگانه در یک روز داشته باشد. برای پایان رسم منطقه از کلید <b>Ctrl</b> روی کیبورد استفاده کنید (حداقل ۳ نقطه لازم است).</p>
+            <select id="routeVisitorSelect" onchange="renderRoutesListForDay()">
                 <option value="">انتخاب ویزیتور...</option>
             </select>
-            <select id="routeDaySelect"></select>
+            <select id="routeDaySelect" onchange="renderRoutesListForDay()"></select>
             <div class="button-group">
                 <button class="action-btn" id="addRouteBtn" onclick="toggleRouteMode()">✏️ رسم منطقه جدید</button>
                 <button class="warning-btn" id="editRouteBtn" onclick="toggleEditRouteMode()">⚙️ ویرایش منطقه</button>
             </div>
             <p class="helper-text" id="routeHelperText" style="display:none; color:var(--primary); font-weight:bold;"></p>
+            <div id="routesListForDay" class="result-box" style="display:none; margin-top:10px;"></div>
         </div>
 
         <!-- بخش 4 -->
