@@ -281,6 +281,51 @@
         const todayRouteLayer = L.layerGroup().addTo(map);
         const mapContainer = document.getElementById('map');
 
+        // ---------- جستجوی فروشگاه بر اساس نام یا صاحب فروشگاه ----------
+        function searchStores() {
+            const query = document.getElementById('storeSearchInput').value.trim().toLowerCase();
+            const resultsBox = document.getElementById('storeSearchResults');
+            resultsBox.style.display = 'block';
+
+            if (!query) {
+                resultsBox.innerHTML = '<span class="muted">یک نام وارد کنید.</span>';
+                return;
+            }
+
+            const matches = data.stores.filter(s =>
+                (s.name && s.name.toLowerCase().includes(query)) ||
+                (s.owner && s.owner.toLowerCase().includes(query))
+            );
+
+            if (matches.length === 0) {
+                resultsBox.innerHTML = '<span class="muted">هیچ فروشگاهی با این نام پیدا نشد.</span>';
+                return;
+            }
+
+            let html = `<b>${matches.length} نتیجه پیدا شد:</b><ul style="list-style:none; padding:0; margin:8px 0 0 0;">`;
+            matches.forEach(s => {
+                html += `<li style="padding:8px 0; border-bottom:1px solid #eee; cursor:pointer;" onclick="focusStore(${s.id})">
+                    🏪 <b>${s.name}</b>${s.owner ? ' - صاحب: ' + s.owner : ''} <span class="muted">(${s.type})</span><br>
+                    <span class="muted" style="font-size:11px;">ویزیتور: ${s.visitor}</span>
+                </li>`;
+            });
+            html += '</ul>';
+            resultsBox.innerHTML = html;
+        }
+
+        function focusStore(id) {
+            const store = data.stores.find(s => s.id === id);
+            if (!store) return;
+            map.setView([store.lat, store.lng], 17);
+            storesLayer.eachLayer(layer => {
+                if (!layer.getLatLng) return;
+                const pos = layer.getLatLng();
+                if (Math.abs(pos.lat - store.lat) < 0.00001 && Math.abs(pos.lng - store.lng) < 0.00001) {
+                    layer.openPopup();
+                }
+            });
+        }
+
         // ---------- جستجوی مکان روی نقشه (OpenStreetMap Nominatim) ----------
         let searchMarker = null;
 
@@ -779,6 +824,7 @@
                 html += `<li style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #eee;">
                     <span>منطقه ${idx + 1} <span class="badge">${count} فروشگاه</span></span>
                     <span style="display:flex; gap:6px;">
+                        <button onclick="viewRegionOnMap(${r.id})" style="width:auto; padding:4px 10px; margin:0; background:var(--secondary); font-size:11px;">👁 نمایش</button>
                         <button onclick="startEditRegion(${r.id})" style="width:auto; padding:4px 10px; margin:0; background:var(--warning); font-size:11px;">✏️ ویرایش</button>
                         <button onclick="deleteRegion(${r.id})" style="width:auto; padding:4px 10px; margin:0; background:#6c757d; font-size:11px;">🗑 حذف</button>
                     </span>
@@ -786,6 +832,21 @@
             });
             html += '</ul>';
             container.innerHTML = html;
+        }
+
+        function viewRegionOnMap(id) {
+            const route = data.routes.find(r => r.id === id);
+            if (!route) return;
+            const layer = L.polygon(route.points);
+            map.fitBounds(layer.getBounds(), { padding: [40, 40] });
+            // بعد از رندر شدن نقشه، پاپ‌آپ منطقه مربوطه را باز می‌کنیم
+            setTimeout(() => {
+                routesLayer.eachLayer(l => {
+                    if (l.getLatLngs && JSON.stringify(l.getLatLngs()[0].map(p => [p.lat, p.lng])) === JSON.stringify(route.points)) {
+                        l.openPopup();
+                    }
+                });
+            }, 300);
         }
 
         function deleteRegion(id) {
@@ -836,7 +897,23 @@
 
         function toggleEditRouteMode() {
             if (!isEditRouteMode) {
-                return alert('برای ویرایش یک منطقه، از دکمه ✏️ ویرایش کنار آن در لیست «مناطق ثبت‌شده» استفاده کنید.');
+                let visitor = document.getElementById('routeVisitorSelect').value;
+                let day = parseInt(document.getElementById('routeDaySelect').value, 10);
+                if (!visitor) return alert('ابتدا ویزیتور را انتخاب کنید.');
+
+                const regions = data.routes.filter(r => r.visitor === visitor && r.day === day);
+                if (regions.length === 0) return alert('منطقه‌ای برای این ویزیتور در این روز وجود ندارد تا ویرایش شود.');
+
+                if (regions.length === 1) {
+                    startEditRegion(regions[0].id);
+                } else {
+                    let listText = 'کدام منطقه را می‌خواهید ویرایش کنید؟ شماره را وارد کنید:\n';
+                    regions.forEach((r, idx) => listText += `${idx + 1}. منطقه ${idx + 1} (${storesInRoute(r).length} فروشگاه)\n`);
+                    let choice = prompt(listText);
+                    let idx = parseInt(choice, 10) - 1;
+                    if (idx >= 0 && idx < regions.length) startEditRegion(regions[idx].id);
+                }
+                return;
             }
 
             // پایان و ذخیره ویرایش
@@ -868,9 +945,17 @@
         }
 
         function drawRoutes() {
+            // برای شماره‌گذاری مناطق هم‌روز/هم‌ویزیتور
+            const groupCounters = {};
             data.routes.forEach(route => {
                 const color = routeColors[route.day % routeColors.length];
-                L.polygon(route.points, { color: color, weight: 3, fillColor: color, fillOpacity: 0.15, interactive: false })
+                const key = route.visitor + '-' + route.day;
+                groupCounters[key] = (groupCounters[key] || 0) + 1;
+                const regionNum = groupCounters[key];
+                const insideCount = storesInRoute(route).length;
+
+                L.polygon(route.points, { color: color, weight: 3, fillColor: color, fillOpacity: 0.15 })
+                  .bindPopup(`<b>👤 ویزیتور:</b> ${route.visitor}<br><b>📅 روز:</b> ${dayNames[route.day]}<br><b>🔢 منطقه شماره:</b> ${regionNum}<br><b>🏪 فروشگاه داخل:</b> ${insideCount}`)
                   .addTo(routesLayer);
             });
         }
