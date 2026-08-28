@@ -71,6 +71,14 @@
             <div id="routesListForDay" class="result-box" style="display:none; margin-top:10px;"></div>
         </div>
 
+        <!-- جستجوی فروشگاه -->
+        <div class="box">
+            <h4 class="section-title">🔍 جستجوی فروشگاه</h4>
+            <input type="text" id="storeSearchInput" placeholder="نام فروشگاه یا صاحب فروشگاه..." onkeypress="if(event.key==='Enter') searchStores()">
+            <button class="info-btn" onclick="searchStores()">جستجو</button>
+            <div id="storeSearchResults" class="result-box" style="display:none;"></div>
+        </div>
+
         <!-- بخش 4 -->
         <div class="box">
             <h4 class="section-title">📌 ۴. منطقه امروز ویزیتور</h4>
