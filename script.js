@@ -352,7 +352,23 @@
 
         document.getElementById('mapSearchBtn').addEventListener('click', searchOnMap);
         document.getElementById('mapSearchInput').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') searchOnMap();
+            if (e.key === 'Enter') {
+                clearTimeout(searchDebounceTimer);
+                searchOnMap();
+            }
+        });
+        // جستجوی زنده حین تایپ (با تأخیر کوتاه برای جلوگیری از درخواست‌های زیاد)
+        let searchDebounceTimer = null;
+        document.getElementById('mapSearchInput').addEventListener('input', function () {
+            clearTimeout(searchDebounceTimer);
+            const val = this.value.trim();
+            const resultsBox = document.getElementById('mapSearchResults');
+            if (val.length === 0) {
+                resultsBox.style.display = 'none';
+                return;
+            }
+            if (val.length < 3) return; // حداقل ۳ حرف برای شروع جستجو
+            searchDebounceTimer = setTimeout(searchOnMap, 600);
         });
 
         function jumpToCoordinate(lat, lon, label) {
@@ -383,10 +399,13 @@
             return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
         }
 
+        let searchRequestId = 0;
+
         async function searchOnMap() {
             const query = document.getElementById('mapSearchInput').value.trim();
             const resultsBox = document.getElementById('mapSearchResults');
             if (!query) return;
+            const myRequestId = ++searchRequestId;
 
             // حالت ۱: مختصات مستقیم کپی‌شده (مثلا از گوگل مپ)
             const coords = tryParseCoordinates(query);
@@ -409,16 +428,27 @@
             resultsBox.innerHTML = '<div class="search-result-item">🔄 در حال جستجو...</div>';
 
             try {
-                // محدود کردن جستجو به اطراف منطقه فعلی نقشه برای نتایج دقیق‌تر
-                const center = map.getCenter();
-                const viewbox = [center.lng - 0.5, center.lat + 0.5, center.lng + 0.5, center.lat - 0.5].join(',');
-                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${viewbox}&bounded=0&limit=6&accept-language=fa`;
+                const bounds = map.getBounds();
+                const strictViewbox = [bounds.getWest(), bounds.getNorth(), bounds.getEast(), bounds.getSouth()].join(',');
 
-                const res = await withTimeout(fetch(url), 10000);
-                const results = await res.json();
+                // مرحله ۱: جستجوی سخت‌گیرانه فقط داخل محدوده‌ای که همین الان روی نقشه می‌بینید
+                const strictUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${strictViewbox}&bounded=1&limit=8&accept-language=fa`;
+                let res = await withTimeout(fetch(strictUrl), 10000);
+                let results = await res.json();
+
+                // مرحله ۲: اگر چیزی پیدا نشد، جستجوی گسترده‌تر (بدون محدودیت سخت) را امتحان کن
+                if ((!results || results.length === 0)) {
+                    const center = map.getCenter();
+                    const wideViewbox = [center.lng - 0.5, center.lat + 0.5, center.lng + 0.5, center.lat - 0.5].join(',');
+                    const wideUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${wideViewbox}&bounded=0&limit=8&accept-language=fa`;
+                    res = await withTimeout(fetch(wideUrl), 10000);
+                    results = await res.json();
+                }
+
+                if (myRequestId !== searchRequestId) return; // نتیجه یک جستجوی قدیمی‌تر است، نادیده گرفته شود
 
                 if (!results || results.length === 0) {
-                    resultsBox.innerHTML = '<div class="search-result-item">نتیجه‌ای پیدا نشد.</div>';
+                    resultsBox.innerHTML = `<div class="search-result-item">نتیجه‌ای پیدا نشد.<br><span style="font-size:11px; opacity:0.8;">ممکن است این کوچه/خیابان هنوز در نقشه OpenStreetMap ثبت نشده باشد. برای مکان‌های دقیق می‌توانید مختصات را از گوگل مپ کپی و اینجا پیست کنید.</span></div>`;
                     return;
                 }
 
@@ -434,6 +464,7 @@
                     resultsBox.appendChild(item);
                 });
             } catch (e) {
+                if (myRequestId !== searchRequestId) return;
                 console.error('خطا در جستجوی مکان:', e);
                 resultsBox.innerHTML = '<div class="search-result-item">خطا در جستجو. اتصال اینترنت را بررسی کنید.</div>';
             }
