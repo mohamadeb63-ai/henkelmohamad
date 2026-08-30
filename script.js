@@ -1099,6 +1099,7 @@
 
             if (records.length === 0) {
                 resultDiv.innerHTML = `<span class="muted">برای «${monthLabel}» هیچ ساعت کاری ثبت نشده است.</span>`;
+                lastReportData = null;
                 return;
             }
 
@@ -1107,37 +1108,88 @@
             if (visitor === 'all') {
                 const byVisitor = {};
                 records.forEach(r => {
-                    if (!byVisitor[r.visitor]) byVisitor[r.visitor] = { hours: 0, visits: 0, success: 0, days: 0 };
+                    if (!byVisitor[r.visitor]) byVisitor[r.visitor] = { hours: 0, visits: 0, success: 0, displays: 0, days: 0 };
                     byVisitor[r.visitor].hours += computeWorkedHours(r.checkIn, r.checkOut);
                     byVisitor[r.visitor].visits += (r.visits || 0);
                     byVisitor[r.visitor].success += (r.successVisits || 0);
+                    byVisitor[r.visitor].displays += (r.displays || 0);
                     byVisitor[r.visitor].days += 1;
                 });
-                html += '<table><tr><th>ویزیتور</th><th>روز کاری</th><th>ساعت کار</th><th>ویزیت</th><th>موفق</th></tr>';
-                Object.keys(byVisitor).sort((a, b) => byVisitor[b].hours - byVisitor[a].hours).forEach(name => {
+                html += '<table><tr><th>ویزیتور</th><th>روز کاری</th><th>ساعت کار</th><th>ویزیت</th><th>موفق</th><th>چیدمان</th></tr>';
+                const names = Object.keys(byVisitor).sort((a, b) => byVisitor[b].hours - byVisitor[a].hours);
+                names.forEach(name => {
                     const v = byVisitor[name];
-                    html += `<tr><td>${name}</td><td>${v.days}</td><td>${formatHoursMinutes(v.hours)}</td><td>${v.visits}</td><td>${v.success}</td></tr>`;
+                    html += `<tr><td>${name}</td><td>${v.days}</td><td>${formatHoursMinutes(v.hours)}</td><td>${v.visits}</td><td>${v.success}</td><td>${v.displays}</td></tr>`;
                 });
                 html += '</table>';
+
+                lastReportData = {
+                    type: 'all',
+                    monthLabel,
+                    rows: names.map(name => ({
+                        'ویزیتور': name,
+                        'روز کاری': byVisitor[name].days,
+                        'ساعت کار (اعشاری)': +byVisitor[name].hours.toFixed(2),
+                        'ساعت کار': formatHoursMinutes(byVisitor[name].hours),
+                        'ویزیت': byVisitor[name].visits,
+                        'ویزیت موفق': byVisitor[name].success,
+                        'چیدمان': byVisitor[name].displays
+                    }))
+                };
             } else {
                 const sorted = records.sort((a, b) => a.date.localeCompare(b.date));
-                let totalHours = 0, totalVisits = 0, totalSuccess = 0;
-                html += '<table><tr><th>تاریخ</th><th>ساعت کار</th><th>ویزیت</th><th>موفق</th></tr>';
+                let totalHours = 0, totalVisits = 0, totalSuccess = 0, totalDisplays = 0;
+                html += '<table><tr><th>تاریخ</th><th>ساعت کار</th><th>ویزیت</th><th>موفق</th><th>چیدمان</th></tr>';
                 sorted.forEach(r => {
                     const hours = computeWorkedHours(r.checkIn, r.checkOut);
                     totalHours += hours;
                     totalVisits += (r.visits || 0);
                     totalSuccess += (r.successVisits || 0);
+                    totalDisplays += (r.displays || 0);
                     const dateStr = new Date(r.date + 'T00:00:00').toLocaleDateString('fa-IR');
-                    html += `<tr><td>${dateStr}</td><td>${formatHoursMinutes(hours)}</td><td>${r.visits || 0}</td><td>${r.successVisits || 0}</td></tr>`;
+                    html += `<tr><td>${dateStr}</td><td>${formatHoursMinutes(hours)}</td><td>${r.visits || 0}</td><td>${r.successVisits || 0}</td><td>${r.displays || 0}</td></tr>`;
                 });
                 html += '</table>';
                 html += `<div class="muted" style="margin-top:8px; line-height:1.9;">
                     مجموع ساعت کار: <b>${formatHoursMinutes(totalHours)}</b> در <b>${sorted.length}</b> روز کاری<br>
-                    مجموع ویزیت: <b>${totalVisits}</b> | مجموع ویزیت موفق: <b>${totalSuccess}</b>
+                    مجموع ویزیت: <b>${totalVisits}</b> | مجموع ویزیت موفق: <b>${totalSuccess}</b> | مجموع چیدمان: <b>${totalDisplays}</b>
                 </div>`;
+
+                lastReportData = {
+                    type: 'single',
+                    monthLabel,
+                    visitor,
+                    rows: sorted.map(r => ({
+                        'تاریخ': new Date(r.date + 'T00:00:00').toLocaleDateString('fa-IR'),
+                        'تاریخ میلادی': r.date,
+                        'ساعت ورود': r.checkIn,
+                        'ساعت خروج': r.checkOut,
+                        'ساعت کار (اعشاری)': +computeWorkedHours(r.checkIn, r.checkOut).toFixed(2),
+                        'ساعت کار': formatHoursMinutes(computeWorkedHours(r.checkIn, r.checkOut)),
+                        'ویزیت': r.visits || 0,
+                        'ویزیت موفق': r.successVisits || 0,
+                        'چیدمان': r.displays || 0
+                    })),
+                    totals: { totalHours, totalVisits, totalSuccess, totalDisplays }
+                };
             }
             resultDiv.innerHTML = html;
+        }
+
+        let lastReportData = null;
+
+        function exportReportToExcel() {
+            if (!lastReportData) return alert('ابتدا یک گزارش را نمایش دهید.');
+            if (typeof XLSX === 'undefined') return alert('کتابخانه اکسل بارگذاری نشده است. اتصال اینترنت را بررسی کنید.');
+
+            const ws = XLSX.utils.json_to_sheet(lastReportData.rows);
+            const wb = XLSX.utils.book_new();
+            const sheetName = lastReportData.type === 'all' ? 'همه ویزیتورها' : lastReportData.visitor;
+            XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31));
+
+            const fileVisitorPart = lastReportData.type === 'all' ? 'همه_ویزیتورها' : lastReportData.visitor;
+            const fileName = `گزارش_${fileVisitorPart}_${lastReportData.monthLabel.replace(/\s+/g, '_')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
         }
 
         async function clearData() {
@@ -1183,19 +1235,21 @@
             const checkOut = document.getElementById('workHoursCheckOut').value;
             const visits = parseInt(document.getElementById('workHoursVisits').value, 10) || 0;
             const successVisits = parseInt(document.getElementById('workHoursSuccessVisits').value, 10) || 0;
+            const displays = parseInt(document.getElementById('workHoursDisplays').value, 10) || 0;
 
             if (!dateVal || !checkIn || !checkOut) return alert('تاریخ، ساعت ورود و ساعت خروج را وارد کنید.');
             if (successVisits > visits) return alert('تعداد ویزیت موفق نمی‌تواند بیشتر از تعداد کل ویزیت باشد.');
 
             // جایگزینی رکورد قبلی همان تاریخ برای همان ویزیتور
             data.workHours = data.workHours.filter(w => !(w.visitor === visitor && w.date === dateVal));
-            data.workHours.push({ id: Date.now(), visitor, date: dateVal, checkIn, checkOut, visits, successVisits });
+            data.workHours.push({ id: Date.now(), visitor, date: dateVal, checkIn, checkOut, visits, successVisits, displays });
             saveAllData();
 
             document.getElementById('workHoursCheckIn').value = '';
             document.getElementById('workHoursCheckOut').value = '';
             document.getElementById('workHoursVisits').value = '';
             document.getElementById('workHoursSuccessVisits').value = '';
+            document.getElementById('workHoursDisplays').value = '';
 
             // پرش به ماهی که رکورد در آن ثبت شد
             const d = new Date(dateVal + 'T00:00:00');
@@ -1239,13 +1293,14 @@
                 return;
             }
 
-            let totalHours = 0, totalVisits = 0, totalSuccess = 0;
-            let html = nav + '<table><tr><th>تاریخ</th><th>ورود</th><th>خروج</th><th>ساعت کار</th><th>ویزیت</th><th>موفق</th><th></th></tr>';
+            let totalHours = 0, totalVisits = 0, totalSuccess = 0, totalDisplays = 0;
+            let html = nav + '<table><tr><th>تاریخ</th><th>ورود</th><th>خروج</th><th>ساعت کار</th><th>ویزیت</th><th>موفق</th><th>چیدمان</th><th></th></tr>';
             records.forEach(r => {
                 const hours = computeWorkedHours(r.checkIn, r.checkOut);
                 totalHours += hours;
                 totalVisits += (r.visits || 0);
                 totalSuccess += (r.successVisits || 0);
+                totalDisplays += (r.displays || 0);
                 const lowHours = hours < 8;
                 const dObj = new Date(r.date + 'T00:00:00');
                 const dateStr = dObj.toLocaleDateString('fa-IR');
@@ -1256,13 +1311,14 @@
                     <td>${formatHoursMinutes(hours)}</td>
                     <td>${r.visits || 0}</td>
                     <td>${r.successVisits || 0}</td>
+                    <td>${r.displays || 0}</td>
                     <td><button onclick="deleteWorkHour(${r.id})" style="width:auto; padding:3px 7px; margin:0; background:#6c757d; font-size:11px;">حذف</button></td>
                 </tr>`;
             });
             html += '</table>';
             html += `<div class="muted" style="margin-top:8px; line-height:1.9;">
                 مجموع ساعت کار این ماه: <b>${formatHoursMinutes(totalHours)}</b><br>
-                مجموع ویزیت: <b>${totalVisits}</b> | مجموع ویزیت موفق: <b>${totalSuccess}</b>
+                مجموع ویزیت: <b>${totalVisits}</b> | مجموع ویزیت موفق: <b>${totalSuccess}</b> | مجموع چیدمان: <b>${totalDisplays}</b>
             </div>`;
 
             container.innerHTML = html;
