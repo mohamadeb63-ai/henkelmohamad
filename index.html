@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <link rel="stylesheet" href="style.css">
 </head>
@@ -96,7 +97,10 @@
                 <option value="all">همه ویزیتورها</option>
             </select>
             <input type="month" id="reportMonthSelect">
-            <button class="info-btn" onclick="showReport()">نمایش گزارش</button>
+            <div class="button-group">
+                <button class="info-btn" onclick="showReport()">نمایش گزارش</button>
+                <button class="action-btn" onclick="exportReportToExcel()">📊 دانلود اکسل</button>
+            </div>
             <div id="reportResult" class="result-box" style="display:none;"></div>
         </div>
 
@@ -140,6 +144,10 @@
                     <label class="helper-text" style="margin:0;">ویزیت موفق</label>
                     <input type="number" id="workHoursSuccessVisits" placeholder="مثلا 5" min="0">
                 </div>
+            </div>
+            <div>
+                <label class="helper-text" style="margin:0;">تعداد چیدمان</label>
+                <input type="number" id="workHoursDisplays" placeholder="مثلا 3" min="0">
             </div>
             <button class="info-btn" onclick="addWorkHour()">💾 ثبت ساعت کاری</button>
             <p class="helper-text">روزهای با کارکرد کمتر از ۸ ساعت به رنگ زرد نمایش داده می‌شوند. با دکمه‌های «ماه قبل / ماه بعد» می‌توانید ماه‌های گذشته میلادی را مرور کنید.</p>
