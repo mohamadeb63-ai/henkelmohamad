@@ -657,8 +657,14 @@
             document.getElementById('addRouteBtn').style.background = "var(--secondary)";
             document.getElementById('addRouteBtn').innerText = "✏️ رسم منطقه جدید";
 
-            if(isStoreMode) mapContainer.classList.add('map-crosshair');
-            else mapContainer.classList.remove('map-crosshair');
+            if(isStoreMode) {
+                mapContainer.classList.add('map-crosshair');
+                map.closePopup(); // بستن هر پاپ‌آپ باز مانده (که می‌تواند جلوی کلیک روی نقشه را بگیرد)
+                map.removeLayer(routesLayer); // جلوگیری کامل از تداخل مناطق با کلیک ثبت فروشگاه
+            } else {
+                mapContainer.classList.remove('map-crosshair');
+                if (!map.hasLayer(routesLayer)) map.addLayer(routesLayer);
+            }
         }
 
         map.on('click', function (e) {
@@ -761,6 +767,7 @@
             storeToMove = id;
             map.closePopup();
             mapContainer.classList.add('map-crosshair');
+            map.removeLayer(routesLayer); // جلوگیری کامل از تداخل مناطق با کلیک جابجایی فروشگاه
             alert('روی نقطه جدید روی نقشه کلیک کنید تا مکان فروشگاه به آنجا منتقل شود.');
         }
 
@@ -823,11 +830,14 @@
             if (isRouteMode) {
                 map.doubleClickZoom.disable(); // جلوگیری از زوم با دبل کلیک اشتباه حین رسم
                 mapContainer.classList.add('map-crosshair');
+                map.closePopup(); // بستن هر پاپ‌آپ باز مانده
+                map.removeLayer(routesLayer); // جلوگیری کامل از تداخل مناطق دیگر با رسم منطقه جدید
                 helper.style.display = 'block';
                 helper.innerText = "برای رسم منطقه، حداقل ۳ نقطه دور منطقه فعالیت کلیک کنید و در انتها کلید Ctrl کیبورد را فشار دهید.";
             } else {
                 map.doubleClickZoom.enable();
                 mapContainer.classList.remove('map-crosshair');
+                if (!map.hasLayer(routesLayer)) map.addLayer(routesLayer);
                 helper.style.display = 'none';
                 if (tempPolyline) { map.removeLayer(tempPolyline); tempPolyline = null; }
             }
@@ -997,6 +1007,7 @@
             routesLayer.clearLayers();
             data.stores.forEach(drawStore);
             drawRoutes();
+            if (!map.hasLayer(routesLayer)) map.addLayer(routesLayer);
         }
 
         // --- توابع کمکی ---
