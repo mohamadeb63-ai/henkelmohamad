@@ -305,7 +305,7 @@
             let html = `<b>${matches.length} نتیجه پیدا شد:</b><ul style="list-style:none; padding:0; margin:8px 0 0 0;">`;
             matches.forEach(s => {
                 html += `<li style="padding:8px 0; border-bottom:1px solid #eee; cursor:pointer;" onclick="focusStore(${s.id})">
-                    🏪 <b>${s.name}</b>${s.owner ? ' - صاحب: ' + s.owner : ''} <span class="muted">(${s.type})</span><br>
+                    🏪 <b>${s.name}</b>${s.owner ? ' - صاحب: ' + s.owner : ''} <span class="muted">(${s.type})</span>${s.hasDisplay ? ' <span class="badge" style="background:#FEF3C7; color:#92400E;">🟡 چیدمان</span>' : ''}<br>
                     <span class="muted" style="font-size:11px;">ویزیتور: ${s.visitor}</span>
                 </li>`;
             });
@@ -698,6 +698,7 @@
                 }
 
                 let phoneNumber = prompt("شماره تماس:");
+                let hasDisplay = confirm("آیا این فروشگاه قابلیت چیدمان دارد؟\n(OK = بله، Cancel = خیر)");
 
                 let visitorText = "کد ویزیتور:\n";
                 data.visitors.forEach((v, index) => visitorText += (index + 1) + ". " + v + "\n");
@@ -707,7 +708,8 @@
                 let newStore = {
                     id: Date.now(), name: storeName, type: storeType || "نامشخص",
                     owner: ownerName || "", phone: phoneNumber || "",
-                    visitor: selectedVisitor, lat: e.latlng.lat, lng: e.latlng.lng
+                    visitor: selectedVisitor, lat: e.latlng.lat, lng: e.latlng.lng,
+                    hasDisplay: hasDisplay
                 };
 
                 data.stores.push(newStore); saveAllData(); drawStore(newStore); toggleStoreMode();
@@ -743,8 +745,18 @@
             }
         });
 
+        // آیکون زرد برای فروشگاه‌های دارای قابلیت چیدمان
+        const yellowIcon = new L.Icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.6.0/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
         function drawStore(store) {
-            let marker = L.marker([store.lat, store.lng]);
+            let marker = L.marker([store.lat, store.lng], store.hasDisplay ? { icon: yellowIcon } : {});
             let popupContent = `
                 <div class="store-popup">
                     <h4>🏪 ${store.name}</h4>
@@ -755,9 +767,19 @@
                     <button class="info-btn" onclick="logVisit(${store.id})">✅ ثبت ویزیت امروز</button>
                     <button class="warning-btn" onclick="editStore(${store.id})">✏️ ویرایش فروشگاه</button>
                     <button class="action-btn" onclick="startMoveStore(${store.id})">📍 جابجایی مکان</button>
+                    <button style="background:${store.hasDisplay ? '#B8860B' : '#9CA3AF'};" onclick="toggleStoreDisplay(${store.id})">${store.hasDisplay ? '🟡 چیدمان: فعال (کلیک برای غیرفعال کردن)' : '⚪ چیدمان: غیرفعال (کلیک برای فعال کردن)'}</button>
                 </div>`;
             marker.bindPopup(popupContent);
             marker.addTo(storesLayer);
+        }
+
+        function toggleStoreDisplay(id) {
+            const store = data.stores.find(s => s.id === id);
+            if (!store) return;
+            store.hasDisplay = !store.hasDisplay;
+            saveAllData();
+            map.closePopup();
+            renderMap();
         }
 
         let storeToMove = null;
@@ -1063,7 +1085,7 @@
             let html = `روز <b>${dayNames[todayIdx]}</b> - ویزیتور <b>${visitor}</b> (${regions.length} منطقه)<br>`;
             html += `<span class="badge">${uniqueInside.length} فروشگاه</span> داخل مناطق امروز<br>`;
             if (uniqueInside.length > 0) {
-                html += '<ul>' + uniqueInside.map(s => `<li>فروشگای ${s.owner && s.owner.trim() !== '' ? s.owner : s.name} <span class="muted">(${s.type})</span></li>`).join('') + '</ul>';
+                html += '<ul>' + uniqueInside.map(s => `<li ${s.hasDisplay ? 'style="color:#92400E; font-weight:700;"' : ''}>فروشگای ${s.owner && s.owner.trim() !== '' ? s.owner : s.name} <span class="muted">(${s.type})</span>${s.hasDisplay ? ' <span class="badge" style="background:#FEF3C7; color:#92400E;">🟡 چیدمان</span>' : ''}</li>`).join('') + '</ul>';
             }
             resultDiv.innerHTML = html;
         }
