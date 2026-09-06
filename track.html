@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ثبت موقعیت</title>
+<link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+    * { box-sizing: border-box; }
+    body {
+        font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #EFF1F6;
+        color: #1D2130;
+        text-align: center;
+        padding: 20px;
+    }
+    .card {
+        background: #fff;
+        padding: 44px 30px;
+        border-radius: 16px;
+        box-shadow: 0 8px 28px rgba(23,26,39,0.14);
+        max-width: 340px;
+        width: 100%;
+    }
+    .icon { font-size: 52px; margin-bottom: 14px; }
+    h2 { margin: 0 0 10px; font-size: 18px; font-weight: 800; }
+    p { color: #6B7180; font-size: 13.5px; line-height: 1.9; margin: 0; }
+    .visitor-name { color: #D6002A; font-weight: 800; }
+    .pulse {
+        display: inline-block;
+        width: 9px; height: 9px;
+        border-radius: 50%;
+        background: #1C9A55;
+        margin-right: 6px;
+        animation: pulse 1.6s infinite;
+        vertical-align: middle;
+    }
+    @keyframes pulse { 0%{opacity:1;} 50%{opacity:.25;} 100%{opacity:1;} }
+</style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon" id="statusIcon">📍</div>
+        <h2 id="statusTitle">ثبت موقعیت روزانه</h2>
+        <p id="statusText">برای شروع، روی دکمه زیر بزن و اجازه دسترسی به موقعیت مکانی را تأیید کن.</p>
+        <button id="startBtn" onclick="startTracking()" style="margin-top:20px; width:100%; padding:14px; border:none; border-radius:10px; background:#D6002A; color:#fff; font-family:inherit; font-size:15px; font-weight:800; cursor:pointer;">📍 شروع ثبت موقعیت</button>
+    </div>
+
+<script>
+    const SUPABASE_URL = 'https://fpzsqmiztaoxmzzghwcj.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_4tOSUAeWV1tN8QvOVA9LGA_DYZPJDo8';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const params = new URLSearchParams(window.location.search);
+    const visitorName = params.get('visitor') || 'ناشناس';
+
+    const titleEl = document.getElementById('statusTitle');
+    const textEl = document.getElementById('statusText');
+    const iconEl = document.getElementById('statusIcon');
+    const startBtn = document.getElementById('startBtn');
+
+    async function sendPing(isFirst) {
+        if (!navigator.geolocation) {
+            iconEl.innerText = '⚠️';
+            titleEl.innerText = 'پشتیبانی نمی‌شود';
+            textEl.innerText = 'مرورگر شما موقعیت‌یابی را پشتیبانی نمی‌کند.';
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                try {
+                    const { error } = await supabaseClient.from('location_pings').insert({
+                        visitor: visitorName,
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude
+                    });
+                    if (error) throw error;
+
+                    iconEl.innerText = '✅';
+                    titleEl.innerText = 'موقعیت شما ثبت شد';
+                    textEl.innerHTML = `<span class="visitor-name">${visitorName}</span> عزیز،<br>می‌توانید این صفحه را باز نگه دارید <span class="pulse"></span><br>یا ببندید و بعداً دوباره باز کنید.`;
+                } catch (e) {
+                    iconEl.innerText = '⚠️';
+                    titleEl.innerText = 'خطا در ارسال';
+                    textEl.innerText = 'اتصال اینترنت خود را بررسی کنید و دوباره تلاش کنید.';
+                }
+            },
+            (err) => {
+                iconEl.innerText = '⚠️';
+                startBtn.style.display = 'block';
+                startBtn.innerText = '🔄 تلاش دوباره';
+
+                if (err.code === 1) {
+                    // PERMISSION_DENIED
+                    titleEl.innerText = 'دسترسی رد شد';
+                    textEl.innerHTML = 'دسترسی موقعیت مکانی مسدود است.<br>روی آیکون 🔒 یا ⓘ کنار آدرس سایت در بالای مرورگر بزن و «Location» را روی Allow بگذار، سپس دوباره تلاش کن.<br><br><b>اگر این لینک را از تلگرام یا واتساپ باز کرده‌ای</b>، حتماً باید با دکمه «باز کردن در مرورگر» (سه‌نقطه ⋮ بالا) در کروم یا سافاری باز شود، چون داخل تلگرام/واتساپ موقعیت‌یابی کار نمی‌کند.';
+                } else if (err.code === 2) {
+                    // POSITION_UNAVAILABLE
+                    titleEl.innerText = 'GPS در دسترس نیست';
+                    textEl.innerText = 'لطفاً از تنظیمات گوشی، «Location / موقعیت مکانی» را روشن کن، سپس دوباره تلاش کن.';
+                } else if (err.code === 3) {
+                    // TIMEOUT
+                    titleEl.innerText = 'زمان تمام شد';
+                    textEl.innerText = 'دریافت موقعیت طول کشید. لطفاً به فضای باز بروید یا اینترنت را بررسی کنید و دوباره تلاش کنید.';
+                } else {
+                    titleEl.innerText = 'خطای نامشخص';
+                    textEl.innerText = 'مشکلی پیش آمد. لطفاً دوباره تلاش کن.';
+                }
+            },
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+        );
+    }
+
+    let trackingStarted = false;
+
+    function startTracking() {
+        startBtn.style.display = 'none';
+        iconEl.innerText = '📍';
+        titleEl.innerText = 'در حال دریافت موقعیت...';
+        textEl.innerText = 'لطفاً اجازه دسترسی به موقعیت مکانی را در مرورگر تأیید کنید.';
+
+        sendPing(true);
+
+        if (!trackingStarted) {
+            trackingStarted = true;
+            setInterval(() => sendPing(false), 5 * 60 * 1000); // هر ۵ دقیقه، تا زمانی که این صفحه باز است
+        }
+    }
+</script>
+</body>
+</html>
