@@ -519,6 +519,8 @@
             fillSelectWithVisitors('reportVisitorSelect', 'همه ویزیتورها', true);
             fillSelectWithVisitors('weeklyVisitorSelect', 'انتخاب ویزیتور...');
             fillSelectWithVisitors('workHoursVisitorSelect', 'انتخاب ویزیتور...');
+            fillSelectWithVisitors('trackLinkVisitorSelect', 'انتخاب ویزیتور...');
+            fillSelectWithVisitors('trackViewVisitorSelect', 'انتخاب ویزیتور...');
         }
 
         function editVisitorName(oldName) {
@@ -1346,6 +1348,114 @@
             container.innerHTML = html;
         }
 
+        // ---------- لینک ردیابی موقعیت ویزیتور ----------
+        function getTrackingBaseUrl() {
+            // آدرس همین سایت، جایگزین index.html با track.html
+            return window.location.href.replace(/index\.html.*$/, '').replace(/\/?$/, '/') + 'track.html';
+        }
+
+        function copyTrackingLink() {
+            const visitor = document.getElementById('trackLinkVisitorSelect').value;
+            if (!visitor) return alert('ابتدا ویزیتور را انتخاب کنید.');
+            const link = `${getTrackingBaseUrl()}?visitor=${encodeURIComponent(visitor)}`;
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(link).then(() => {
+                    alert('لینک کپی شد:\n' + link);
+                }).catch(() => {
+                    prompt('لینک را کپی کنید:', link);
+                });
+            } else {
+                prompt('لینک را کپی کنید:', link);
+            }
+        }
+
+        const trackedPathLayer = L.layerGroup().addTo(map);
+
+        async function showTrackedPath() {
+            const visitor = document.getElementById('trackViewVisitorSelect').value;
+            const dateVal = document.getElementById('trackViewDate').value;
+            const resultDiv = document.getElementById('trackViewResult');
+            resultDiv.style.display = 'block';
+            trackedPathLayer.clearLayers();
+
+            if (!visitor || !dateVal) {
+                resultDiv.innerHTML = '<span class="muted">ویزیتور و تاریخ را انتخاب کنید.</span>';
+                return;
+            }
+            if (!supabaseClient) {
+                resultDiv.innerHTML = '<span class="muted">اتصال به سرور برقرار نیست.</span>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<span class="muted">🔄 در حال بارگذاری...</span>';
+
+            const dayStart = new Date(dateVal + 'T00:00:00').toISOString();
+            const dayEnd = new Date(dateVal + 'T23:59:59').toISOString();
+
+            let pings;
+            try {
+                const { data: rows, error } = await withTimeout(
+                    supabaseClient.from('location_pings')
+                        .select('lat, lng, created_at')
+                        .eq('visitor', visitor)
+                        .gte('created_at', dayStart)
+                        .lte('created_at', dayEnd)
+                        .order('created_at', { ascending: true })
+                );
+                if (error) throw error;
+                pings = rows || [];
+            } catch (e) {
+                resultDiv.innerHTML = '<span class="muted">خطا در دریافت اطلاعات ردیابی.</span>';
+                return;
+            }
+
+            if (pings.length === 0) {
+                resultDiv.innerHTML = `<span class="muted">هیچ موقعیتی برای <b>${visitor}</b> در این تاریخ ثبت نشده است.</span>`;
+                return;
+            }
+
+            const latlngs = pings.map(p => [p.lat, p.lng]);
+            const pathLine = L.polyline(latlngs, { color: 'var(--secondary)', weight: 4, opacity: 0.8, dashArray: '6,6' }).addTo(trackedPathLayer);
+
+            L.circleMarker(latlngs[0], { radius: 8, color: 'var(--success)', fillColor: '#1C9A55', fillOpacity: 1, weight: 2 })
+                .bindPopup(`🟢 شروع: ${new Date(pings[0].created_at).toLocaleTimeString('fa-IR')}`)
+                .addTo(trackedPathLayer);
+
+            if (latlngs.length > 1) {
+                L.circleMarker(latlngs[latlngs.length - 1], { radius: 8, color: 'var(--primary)', fillColor: '#D6002A', fillOpacity: 1, weight: 2 })
+                    .bindPopup(`🔴 آخرین موقعیت: ${new Date(pings[pings.length - 1].created_at).toLocaleTimeString('fa-IR')}`)
+                    .addTo(trackedPathLayer);
+            }
+
+            pings.forEach((p, idx) => {
+                if (idx === 0 || idx === pings.length - 1) return;
+                L.circleMarker([p.lat, p.lng], { radius: 4, color: 'var(--secondary)', fillColor: '#fff', fillOpacity: 1, weight: 2 })
+                    .bindPopup(new Date(p.created_at).toLocaleTimeString('fa-IR'))
+                    .addTo(trackedPathLayer);
+            });
+
+            map.fitBounds(pathLine.getBounds(), { padding: [40, 40] });
+
+            resultDiv.innerHTML = `📍 <b>${pings.length}</b> موقعیت ثبت‌شده برای <b>${visitor}</b><br>
+                اولین ثبت: <b>${new Date(pings[0].created_at).toLocaleTimeString('fa-IR')}</b> | آخرین ثبت: <b>${new Date(pings[pings.length - 1].created_at).toLocaleTimeString('fa-IR')}</b>`;
+        }
+
+        async function cleanupOldPings() {
+            if (!supabaseClient) return alert('اتصال به سرور برقرار نیست.');
+            if (!confirm('آیا از پاک کردن تمام ردیابی‌های قدیمی‌تر از ۳۰ روز مطمئن هستید؟')) return;
+            const cutoff = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)).toISOString();
+            try {
+                const { error } = await withTimeout(
+                    supabaseClient.from('location_pings').delete().lt('created_at', cutoff)
+                );
+                if (error) throw error;
+                alert('ردیابی‌های قدیمی با موفقیت پاک شدند.');
+            } catch (e) {
+                alert('خطا در پاک کردن اطلاعات.');
+            }
+        }
+
         fillDaySelect();
         fillTaskDaySelect();
         loadAllData();
@@ -1363,5 +1473,9 @@
             const monthInput = document.getElementById('reportMonthSelect');
             if (monthInput) {
                 monthInput.value = `${y}-${m}`;
+            }
+            const trackDateInput = document.getElementById('trackViewDate');
+            if (trackDateInput) {
+                trackDateInput.value = `${y}-${m}-${d}`;
             }
         })();
