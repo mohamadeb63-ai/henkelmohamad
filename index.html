@@ -154,6 +154,29 @@
             <div id="workHoursResult" class="result-box" style="display:none;"></div>
         </div>
 
+        <!-- لینک ردیابی موقعیت برای ویزیتورها -->
+        <div class="box">
+            <h4 class="section-title">📤 لینک ردیابی موقعیت</h4>
+            <p class="helper-text">برای هر ویزیتور یک لینک اختصاصی وجود دارد. لینک را برای او در تلگرام/واتساپ ارسال کن؛ با باز کردن لینک، موقعیتش خودکار برای تو ثبت می‌شود و هیچ بخش دیگری از سایت را نمی‌بیند.</p>
+            <select id="trackLinkVisitorSelect">
+                <option value="">انتخاب ویزیتور...</option>
+            </select>
+            <button class="action-btn" onclick="copyTrackingLink()">📋 کپی لینک ردیابی</button>
+        </div>
+
+        <!-- مشاهده مسیر ردیابی‌شده (سمت مدیر) -->
+        <div class="box">
+            <h4 class="section-title">🗺 مسیر روزانه ویزیتور (نقشه زنده)</h4>
+            <select id="trackViewVisitorSelect">
+                <option value="">انتخاب ویزیتور...</option>
+            </select>
+            <input type="date" id="trackViewDate">
+            <button class="info-btn" onclick="showTrackedPath()">نمایش مسیر روی نقشه</button>
+            <div id="trackViewResult" class="result-box" style="display:none;"></div>
+            <p class="helper-text">برای جلوگیری از سنگین شدن دیتابیس، هر چند وقت یک‌بار می‌توانید ردیابی‌های قدیمی را پاک کنید.</p>
+            <button style="background:#6c757d;" onclick="cleanupOldPings()">🗑 پاک کردن ردیابی‌های قدیمی‌تر از ۳۰ روز</button>
+        </div>
+
         <!-- بخش 8 -->
         <div class="box">
             <h4 class="section-title">💾 ۸. پشتیبان‌گیری از اطلاعات</h4>
